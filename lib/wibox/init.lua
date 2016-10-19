@@ -1,7 +1,6 @@
 ---------------------------------------------------------------------------
 -- @author Uli Schlachter
 -- @copyright 2010 Uli Schlachter
--- @release @AWESOME_VERSION@
 -- @classmod wibox
 ---------------------------------------------------------------------------
 
@@ -158,16 +157,18 @@ local function new(args)
     local ret = object()
     local w = capi.drawin(args)
 
-    -- lua 5.1 and luajit have issues with self referencing loops
-    local avoid_leak = setmetatable({ret},{__mode="v"})
-
     function w.get_wibox()
-        return avoid_leak[1]
+        return ret
     end
 
     ret.drawin = w
     ret._drawable = wibox.drawable(w.drawable, { wibox = ret },
         "wibox drawable (" .. object.modulename(3) .. ")")
+
+    ret._drawable:_inform_visible(w.visible)
+    w:connect_signal("property::visible", function()
+        ret._drawable:_inform_visible(w.visible)
+    end)
 
     for k, v in pairs(wibox) do
         if type(v) == "function" then

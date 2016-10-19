@@ -3,7 +3,6 @@
 --
 -- @author Uli Schlachter
 -- @copyright 2012 Uli Schlachter
--- @release @AWESOME_VERSION@
 -- @module awful.titlebar
 ---------------------------------------------------------------------------
 
@@ -282,6 +281,7 @@ local function new(c, args)
             position = position
         }
         ret = drawable(d, context, "awful.titlebar")
+        ret:_inform_visible(true)
         local function update_colors()
             local args_ = bars[position].args
             ret:set_bg(get_color("bg", c, args_))
@@ -298,6 +298,9 @@ local function new(c, args)
         -- Update the colors when focus changes
         c:connect_signal("focus", update_colors)
         c:connect_signal("unfocus", update_colors)
+
+        -- Inform the drawable when it becomes invisible
+        c:connect_signal("unmanage", function() ret:_inform_visible(false) end)
     else
         bars[position].args = args
         ret = bars[position].drawable

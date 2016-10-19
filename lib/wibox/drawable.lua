@@ -3,7 +3,6 @@
 --
 -- @author Uli Schlachter
 -- @copyright 2012 Uli Schlachter
--- @release @AWESOME_VERSION@
 -- @classmod wibox.drawable
 ---------------------------------------------------------------------------
 
@@ -24,8 +23,7 @@ local matrix = require("gears.matrix")
 local hierarchy = require("wibox.hierarchy")
 local unpack = unpack or table.unpack -- luacheck: globals unpack (compatibility with Lua 5.1)
 
-local drawables_draw = setmetatable({}, { __mode = 'k' })
-local drawables_force_complete_repaint = setmetatable({}, { __mode = 'k' })
+local visible_drawables = {}
 
 -- Get the widget context. This should always return the same table (if
 -- possible), so that our draw and fit caches can work efficiently.
@@ -173,9 +171,11 @@ local function find_widgets(_drawable, result, _hierarchy, x, y)
             0, 0, width, height)
         table.insert(result, {
             x = x3, y = y3, width = w3, height = h3,
-            drawable = _drawable, widget = _hierarchy:get_widget(),
-            matrix_to_device = _hierarchy:get_matrix_to_device(),
-            matrix_to_parent = _hierarchy:get_matrix_to_parent(),
+            widget_width = width,
+            widget_height = height,
+            drawable = _drawable,
+            widget = _hierarchy:get_widget(),
+            hierarchy = _hierarchy
         })
     end
     for _, child in ipairs(_hierarchy:get_children()) do
@@ -187,8 +187,14 @@ end
 -- The drawable must have drawn itself at least once for this to work.
 -- @param x X coordinate of the point
 -- @param y Y coordinate of the point
--- @return A sorted table with all widgets that contain the given point. The
---   widgets are sorted by relevance.
+-- @treturn table A table containing a description of all the widgets that
+-- contain the given point. Each entry is a table containing this drawable as
+-- its `.drawable` entry, the widget under `.widget` and the instance of
+-- `wibox.hierarchy` describing the size and position of the widget under
+-- `.hierarchy`. For convenience, `.x`, `.y`, `.width` and `.height` contain an
+-- approximation of the widget's extents on the surface. `widget_width` and
+-- `widget_height` contain the exact size of the widget in its own, local
+-- coordinate system (which may e.g. be rotated and scaled).
 function drawable:find_widgets(x, y)
     local result = {}
     if self._widget_hierarchy then
@@ -264,6 +270,17 @@ function drawable:set_fg(c)
     end
     self.foreground_color = c
     self._do_complete_repaint()
+end
+
+function drawable:_inform_visible(visible)
+    self._visible = visible
+    if visible then
+        visible_drawables[self] = true
+        -- The wallpaper or widgets might have changed
+        self:_do_complete_repaint()
+    else
+        visible_drawables[self] = nil
+    end
 end
 
 local function emit_difference(name, list, skip)
@@ -358,8 +375,6 @@ function drawable.new(d, widget_context_skeleton, drawable_name)
         ret._need_complete_repaint = true
         ret:draw()
     end
-    drawables_draw[ret.draw] = true
-    drawables_force_complete_repaint[ret._do_complete_repaint] = true
 
     -- Do a full redraw if the surface changes (the new surface has no content yet)
     d:connect_signal("property::surface", ret._do_complete_repaint)
@@ -386,8 +401,7 @@ function drawable.new(d, widget_context_skeleton, drawable_name)
             local widgets = ret:find_widgets(x, y)
             for _, v in pairs(widgets) do
                 -- Calculate x/y inside of the widget
-                local lx = x - v.x
-                local ly = y - v.y
+                local lx, ly = v.hierarchy:get_matrix_from_device():transform_point(x, y)
                 v.widget:emit_signal(name, lx, ly, button, modifiers,v)
             end
         end)
@@ -400,13 +414,8 @@ function drawable.new(d, widget_context_skeleton, drawable_name)
 
     -- Set up our callbacks for repaints
     ret._redraw_callback = function(hierar, arg)
-        -- XXX: lgi will lead us into memory-corruption-land when we use an
-        -- object after it was GC'd. Try to detect this situation by checking if
-        -- the drawable is still valid. This is only a weak indication, but it
-        -- seems to be the best that we can do. The problem is that the drawable
-        -- could not yet be GC'd, but is pending finalisation, while the
-        -- cairo.Region below was already GC'd. This would still lead to corruption.
-        if not ret.drawable.valid then
+        -- Avoid crashes when a drawable was partly finalized and dirty_area is broken.
+        if not ret._visible then
             return
         end
         if ret._widget_hierarchy_callback_arg ~= arg then
@@ -426,7 +435,11 @@ function drawable.new(d, widget_context_skeleton, drawable_name)
             return
         end
         ret._need_relayout = true
-        ret:draw()
+        -- When not visible, we will be redrawn when we become visible. In the
+        -- mean-time, the layout does not matter much.
+        if ret._visible then
+            ret:draw()
+        end
     end
 
     -- Add __tostring method to metatable.
@@ -446,15 +459,15 @@ end
 
 -- Redraw all drawables when the wallpaper changes
 capi.awesome.connect_signal("wallpaper_changed", function()
-    for k in pairs(drawables_force_complete_repaint) do
-        k()
+    for d in pairs(visible_drawables) do
+        d:_do_complete_repaint()
     end
 end)
 
 -- Give drawables a chance to react to screen changes
 local function draw_all()
-    for k in pairs(drawables_draw) do
-        k()
+    for d in pairs(visible_drawables) do
+        d:draw()
     end
 end
 screen.connect_signal("property::geometry", draw_all)

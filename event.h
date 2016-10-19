@@ -37,6 +37,7 @@ void drawin_refresh(void);
 /* objects/client.c */
 void client_refresh(void);
 void client_focus_refresh(void);
+void client_destroy_later(void);
 
 /* objects/screen.c */
 void screen_refresh(void);
@@ -46,10 +47,11 @@ awesome_refresh(void)
 {
     screen_refresh();
     luaA_emit_refresh();
-    banning_refresh();
-    stack_refresh();
     drawin_refresh();
     client_refresh();
+    banning_refresh();
+    stack_refresh();
+    client_destroy_later();
     return xcb_flush(globalconf.connection);
 }
 
