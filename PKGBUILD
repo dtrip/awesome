@@ -3,12 +3,13 @@
 # Contributor: xduugu
 # Contributor: Ronald van Haren <ronald.archlinux.org>
 # Contributor: Vesa Kaihlavirta
-source=(git://github.com/dtrip/awesome.git)
-src='/usr/local/src/awesome'
+# source=(git://github.com/dtrip/awesome.git)
+source=('git+file:///usr/local/src/awesome#branch=master')
+# src='/usr/local/src/awesome'
 pkgname=awesome
 pkgver() {
-  cd '$pkgname'
-  git describe --long | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+  cd $srcdir/$pkgname
+  echo "git describe --long | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'"
 }
 pkgrel=1
 pkgdesc='Highly configurable framework window manager'
@@ -36,7 +37,7 @@ makedepends=(
   'cmake'
   'doxygen'
   'imagemagick'
-  'ldoc'
+  # 'ldoc'
   'xmlto'
   'lua-alt-getopt'
 )
@@ -50,7 +51,7 @@ provides=('notification-daemon')
          # '0fdbeec43d211c6750041d7e37611a6a')
 
 build() {
-  cd  $pkgname-$pkgver
+  cd  $srcdir/$pkgname
   mkdir build
   cd build
   cmake ..
@@ -65,11 +66,12 @@ build() {
 }
 
 package() {
-  cd $pkgname-$pkgver
-  gmake DESTDIR="$pkgdir" install
+  cd $srcdir/$pkgname/build
+  make install
+  # gmake DESTDIR="$pkgdir" install
   # install desktop file so you can start awesome from your login manager
-  install -dm755 $pkgdir/usr/share/xsessions
-  install -m644 ../awesome.desktop "$pkgdir/usr/share/xsessions/awesome.desktop"
+  install -dm755 /usr/local/share/xsessions
+  install -m644 ../awesome.desktop "/usr/local/share/xsessions/awesome.desktop"
 }
 
 # vim:set ts=2 sw=2 et:
