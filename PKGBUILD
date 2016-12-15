@@ -6,7 +6,8 @@
 # source=(git://github.com/dtrip/awesome.git)
 source=('git+file:///usr/local/src/awesome#branch=master')
 # src='/usr/local/src/awesome'
-pkgname=awesome
+_pkgname=awesome
+pkgname=${_pkgname}-dtrip
 pkgver() {
   cd $srcdir/$pkgname
   echo "git describe --long | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'"
@@ -21,6 +22,7 @@ depends=(
   'dbus-openrc'
   'gdk-pixbuf2'
   'imlib2'
+  'libxkbcommon-x11'
   'libxcursor'
   'libxdg-basedir'
   'lua'
@@ -28,6 +30,8 @@ depends=(
   'pango'
   'startup-notification'
   'xcb-util-image'
+  'xcb-util-cursor'
+  'xcb-util-xrm'
   'xcb-util-keysyms'
   'xcb-util-wm'
   'xorg-xmessage'
@@ -46,10 +50,12 @@ optdepends=(
   'dex'
   'vicious'
 )
-provides=('notification-daemon')
+provides=('notification-daemon' 'awesome')
+conflicts=('awesome')
 # md5sums=('f528f66ddcdb07f24e6f494837371702'
          # '0fdbeec43d211c6750041d7e37611a6a')
 
+md5sums=(SKIP)
 build() {
   cd  $srcdir/$pkgname
   mkdir build
