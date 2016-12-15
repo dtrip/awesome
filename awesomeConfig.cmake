@@ -42,6 +42,14 @@ a_find_program(LDOC_EXECUTABLE ldoc FALSE)
 if(NOT LDOC_EXECUTABLE)
     a_find_program(LDOC_EXECUTABLE ldoc.lua FALSE)
 endif()
+if(LDOC_EXECUTABLE)
+    execute_process(COMMAND sh -c "${LDOC_EXECUTABLE} --sadly-ldoc-has-no-version-option 2>&1  | grep ' vs 1.4.5'"
+                    OUTPUT_VARIABLE LDOC_VERSION_RESULT)
+    if(NOT LDOC_VERSION_RESULT STREQUAL "")
+        message(WARNING "Ignoring LDoc, because version 1.4.5 is known to be broken")
+        unset(LDOC_EXECUTABLE CACHE)
+    endif()
+endif()
 # theme graphics
 a_find_program(CONVERT_EXECUTABLE convert TRUE)
 # pkg-config
@@ -107,12 +115,11 @@ endif()
 pkg_check_modules(AWESOME_COMMON_REQUIRED REQUIRED
     xcb>=1.6)
 
-pkg_check_modules(AWESOME_REQUIRED REQUIRED
+set(AWESOME_DEPENDENCIES
     glib-2.0
     gdk-pixbuf-2.0
     cairo
     x11
-    x11-xcb
     xcb-cursor
     xcb-randr
     xcb-xtest
@@ -129,11 +136,21 @@ pkg_check_modules(AWESOME_REQUIRED REQUIRED
     cairo-xcb
     libstartup-notification-1.0>=0.10
     xproto>=7.0.15
-    libxdg-basedir>=1.0.0)
+    libxdg-basedir>=1.0.0
+    xcb-xrm
+)
 
-if(NOT AWESOME_REQUIRED_FOUND OR NOT AWESOME_COMMON_REQUIRED_FOUND)
-    message(FATAL_ERROR)
-endif()
+# Check the deps one by one
+foreach(dependency ${AWESOME_DEPENDENCIES})
+    pkg_check_modules(TMP_DEP REQUIRED ${dependency})
+
+    if(NOT TMP_DEP_FOUND)
+        message(FATAL_ERROR)
+    endif()
+endforeach()
+
+# Do it again, but this time with the CFLAGS/LDFLAGS
+pkg_check_modules(AWESOME_REQUIRED REQUIRED ${AWESOME_DEPENDENCIES})
 
 # On Mac OS X, the executable of Awesome has to be linked against libiconv
 # explicitly.  Unfortunately, libiconv doesn't have its pkg-config file,
