@@ -6,12 +6,14 @@
 # source=(git://github.com/dtrip/awesome.git)
 source=('git+file:///usr/local/src/awesome#branch=master')
 # src='/usr/local/src/awesome'
+_src='/usr/local/src'
 _pkgname=awesome
 pkgname=${_pkgname}-dtrip
-pkgver=3.5.2.r2247.g06cddf1
+pkgver=v3.5.22352g7e3b4b70
 pkgver() {
   cd $srcdir/
-  echo "git describe --long | sed 's/^v//;s/\\([^-]*-g\\)/r\\1/;s/-/./g'"
+  # echo "git describe --long | sed 's/^v//;s/\\([^-]*-g\\)/r\\1/;s/-/./g'"
+  echo $(git describe | sed 's|-||g')
 }
 pkgrel=1
 pkgdesc='Highly configurable framework window manager'
@@ -58,7 +60,8 @@ conflicts=('awesome')
 
 md5sums=(SKIP)
 build() {
-  cd  $srcdir/$pkgname
+  #cd  $srcdir/$pkgname
+  cd  $_src
   mkdir build
   cd build
   cmake ..
@@ -73,7 +76,8 @@ build() {
 }
 
 package() {
-  cd $srcdir/$pkgname/build
+  # cd $srcdir/$pkgname/build
+  cd $_src/build
   make install
   # gmake DESTDIR="$pkgdir" install
   # install desktop file so you can start awesome from your login manager
