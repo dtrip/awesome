@@ -9,7 +9,7 @@ source=('git+file:///usr/local/src/awesome#branch=master')
 _src='/usr/local/src'
 _pkgname=awesome
 pkgname=${_pkgname}-dtrip
-pkgver=v3.5.22352g7e3b4b70
+pkgver=v3.5.22353g27d0b08c
 pkgver() {
   cd $srcdir/
   # echo "git describe --long | sed 's/^v//;s/\\([^-]*-g\\)/r\\1/;s/-/./g'"
@@ -60,27 +60,16 @@ conflicts=('awesome')
 
 md5sums=(SKIP)
 build() {
-  #cd  $srcdir/$pkgname
-  cd  $_src
+  cd  $_src/$_pkgname
   mkdir build
   cd build
   cmake ..
   make
-  # cd $pkgname-$pkgver
-  # cmake \
-    # -dcMAKE_BUILD_TYPE=RELEASE \
-    # -DCMAKE_INSTALL_PREFIX=/usr \
-    # -DSYSCONFDIR=/etc \
-    # -DLUA_LIBRARY=/usr/lib/liblua.so.5.2
-  # gmake
 }
 
 package() {
-  # cd $srcdir/$pkgname/build
-  cd $_src/build
+  cd $_src/$_pkgname/build
   make install
-  # gmake DESTDIR="$pkgdir" install
-  # install desktop file so you can start awesome from your login manager
   install -dm755 /usr/local/share/xsessions
   install -m644 ../awesome.desktop "/usr/local/share/xsessions/awesome.desktop"
 }
