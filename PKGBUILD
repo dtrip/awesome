@@ -8,9 +8,10 @@ source=('git+file:///usr/local/src/awesome#branch=master')
 # src='/usr/local/src/awesome'
 _pkgname=awesome
 pkgname=${_pkgname}-dtrip
+pkgver=3.5.2.r2247.g06cddf1
 pkgver() {
-  cd $srcdir/$pkgname
-  echo "git describe --long | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'"
+  cd $srcdir/
+  echo "git describe --long | sed 's/^v//;s/\\([^-]*-g\\)/r\\1/;s/-/./g'"
 }
 pkgrel=1
 pkgdesc='Highly configurable framework window manager'
