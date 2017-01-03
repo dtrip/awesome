@@ -17,11 +17,11 @@ end
 
 local l = wibox.layout {
     gen(0), gen(3), gen(6), gen({
-        top    = 12,
-        bottom = 12,
-        left   = 12,
-        right  = 12,
-    }),
+                                top    = 12,
+                                bottom = 12,
+                                left   = 12,
+                                right  = 12,
+                            }),
     forced_height = 30,
     forced_width  = 400,
     spacing       = 5,
@@ -29,3 +29,5 @@ local l = wibox.layout {
 }
 
 parent:add(l)
+
+--DOC_HIDE vim: filetype=lua:expandtab:shiftwidth=4:tabstop=8:softtabstop=4:textwidth=80

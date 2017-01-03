@@ -12,13 +12,15 @@ local l = wibox.layout { --DOC_HIDE
 
 for _, shape in ipairs {"rounded_bar", "octogon", "hexagon", "powerline" } do
     l:add(wibox.widget {
-        value         = 0.33,
-        shape         = gears.shape[shape],
-        border_width  = 2,
-        border_color  = beautiful.border_color,
-        margins       = 5, --DOC_HIDE
-        widget        = wibox.widget.progressbar,
-    })
+          value         = 0.33,
+          shape         = gears.shape[shape],
+          border_width  = 2,
+          border_color  = beautiful.border_color,
+          margins       = 5, --DOC_HIDE
+          widget        = wibox.widget.progressbar,
+      })
 end
 
 parent:add(l) --DOC_HIDE
+
+--DOC_HIDE vim: filetype=lua:expandtab:shiftwidth=4:tabstop=8:softtabstop=4:textwidth=80

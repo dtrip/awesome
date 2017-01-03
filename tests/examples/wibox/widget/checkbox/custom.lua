@@ -11,7 +11,6 @@ parent:add( --DOC_HIDE
         forced_height = 20, --DOC_HIDE
         check_shape   = function(cr, width, height)
             local rs = math.min(width, height)
-
             cr:move_to( 0  , 0  )
             cr:line_to( rs , 0  )
             cr:move_to( 0  , 0  )
@@ -31,3 +30,4 @@ parent:add( --DOC_HIDE
         widget             = wibox.widget.checkbox
     }
 ) --DOC_HIDE
+--DOC_HIDE vim: filetype=lua:expandtab:shiftwidth=4:tabstop=8:softtabstop=4:textwidth=80
