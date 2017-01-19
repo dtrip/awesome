@@ -111,6 +111,10 @@ taglist.filter = {}
 -- @beautiful beautiful.taglist_font
 -- @param string
 
+--- The space between the taglist elements.
+-- @beautiful beautiful.taglist_spacing
+-- @tparam[opt=0] number spacing The spacing between tags.
+
 --- The main shape used for the elements.
 -- This will be the fallback for state specific shapes.
 -- To get a shape for the whole taglist, use `wibox.container.background`.
@@ -281,11 +285,11 @@ function taglist.taglist_label(t, args)
         end
 
         if args.shape_border_width_focus or theme.taglist_shape_border_width_focus then
-            shape = args.shape_border_width_focus or theme.taglist_shape_border_width_focus
+            shape_border_width = args.shape_border_width_focus or theme.taglist_shape_border_width_focus
         end
 
         if args.shape_border_color_focus or theme.taglist_shape_border_color_focus then
-            shape = args.shape_border_color_focus or theme.taglist_shape_border_color_focus
+            shape_border_color = args.shape_border_color_focus or theme.taglist_shape_border_color_focus
         end
 
     elseif tag.getproperty(t, "urgent") then
