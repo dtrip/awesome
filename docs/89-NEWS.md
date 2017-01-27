@@ -399,8 +399,8 @@ This allows for interactive widgets such as a slider.
 
 **See:**
 
-* `gears.hierarchy`
-* * <a href="./04-new-widgets.md.html">Creating new widget</a>
+* `wibox.hierarchy`
+* <a href="./04-new-widgets.md.html">Creating new widget</a>
 
 ### New themes
 
@@ -591,7 +591,7 @@ It allows to preserve the tag and layout state across changes. Old `rc.lua` can
 either be ported to handle this by taking clues from the new `rc.lua` or
 restore the old behavior by adding the following at the end:
 
-    screen.connect("list", awesome.restart)
+    screen.connect_signal("list", awesome.restart)
 
 **See:**
 
