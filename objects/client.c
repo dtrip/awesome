@@ -670,6 +670,17 @@
  */
 
 /**
+ * The client's input shape as set by awesome as a (native) cairo surface.
+ *
+ * **Signal:**
+ *
+ *  * *property::shape\_input*
+ *
+ * @property shape_input
+ * @param surface
+ */
+
+/**
  * The client's bounding shape as set by the program as a (native) cairo surface.
  *
  * **Signal:**
@@ -733,6 +744,16 @@
  * @param tag
  */
 
+/** When the height or width changed.
+ * @signal property::size
+ * @see client.geometry
+ */
+
+/** When the x or y coordinate changed.
+ * @signal property::position
+ * @see client.geometry
+ */
+
 /**
  * The border color when the client is focused.
  *
@@ -784,9 +805,17 @@
  * @function set_newindex_miss_handler
  */
 
+typedef enum {
+    CLIENT_MAXIMIZED_NONE = 0 << 0,
+    CLIENT_MAXIMIZED_V    = 1 << 0,
+    CLIENT_MAXIMIZED_H    = 1 << 1,
+    CLIENT_MAXIMIZED_BOTH = 1 << 2, /* V|H == BOTH, but ~(V|H) != ~(BOTH)... */
+} client_maximized_t;
+
 static area_t titlebar_get_area(client_t *c, client_titlebar_t bar);
 static drawable_t *titlebar_get_drawable(lua_State *L, client_t *c, int cl_idx, client_titlebar_t bar);
 static void client_resize_do(client_t *c, area_t geometry);
+static void client_set_maximized_common(lua_State *L, int cidx, bool s, const char* type, const int val);
 
 /** Collect a client.
  * \param L The Lua VM state.
@@ -1405,8 +1434,6 @@ client_manage(xcb_window_t w, xcb_get_geometry_reply_t *wgeom, xcb_get_window_at
      * (Else, reparent could cause an UnmapNotify) */
     xcb_change_window_attributes(globalconf.connection, w, XCB_CW_EVENT_MASK, select_input_val);
 
-    luaA_object_emit_signal(L, -1, "property::window", 0);
-
     /* The frame window gets the border, not the real client window */
     xcb_configure_window(globalconf.connection, w,
                          XCB_CONFIG_WINDOW_BORDER_WIDTH,
@@ -1429,15 +1456,17 @@ client_manage(xcb_window_t w, xcb_get_geometry_reply_t *wgeom, xcb_get_window_at
 
     /* Store initial geometry and emits signals so we inform that geometry have
      * been set. */
-#define HANDLE_GEOM(attr) \
-    c->geometry.attr = wgeom->attr; \
-    luaA_object_emit_signal(L, -1, "property::" #attr, 0);
-HANDLE_GEOM(x)
-HANDLE_GEOM(y)
-HANDLE_GEOM(width)
-HANDLE_GEOM(height)
-#undef HANDLE_GEOM
 
+    c->geometry.x = wgeom->x;
+    c->geometry.y = wgeom->y;
+    c->geometry.width = wgeom->width;
+    c->geometry.height = wgeom->height;
+
+    luaA_object_emit_signal(L, -1, "property::x", 0);
+    luaA_object_emit_signal(L, -1, "property::y", 0);
+    luaA_object_emit_signal(L, -1, "property::width", 0);
+    luaA_object_emit_signal(L, -1, "property::height", 0);
+    luaA_object_emit_signal(L, -1, "property::window", 0);
     luaA_object_emit_signal(L, -1, "property::geometry", 0);
 
     /* Set border width */
@@ -1647,14 +1676,22 @@ client_resize_do(client_t *c, area_t geometry)
     luaA_object_push(L, c);
     if (!AREA_EQUAL(old_geometry, geometry))
         luaA_object_emit_signal(L, -1, "property::geometry", 0);
-    if (old_geometry.x != geometry.x)
-        luaA_object_emit_signal(L, -1, "property::x", 0);
-    if (old_geometry.y != geometry.y)
-        luaA_object_emit_signal(L, -1, "property::y", 0);
-    if (old_geometry.width != geometry.width)
-        luaA_object_emit_signal(L, -1, "property::width", 0);
-    if (old_geometry.height != geometry.height)
-        luaA_object_emit_signal(L, -1, "property::height", 0);
+    if (old_geometry.x != geometry.x || old_geometry.y != geometry.y)
+    {
+        luaA_object_emit_signal(L, -1, "property::position", 0);
+        if (old_geometry.x != geometry.x)
+            luaA_object_emit_signal(L, -1, "property::x", 0);
+        else
+            luaA_object_emit_signal(L, -1, "property::y", 0);
+    }
+    if (old_geometry.width != geometry.width || old_geometry.height != geometry.height)
+    {
+        luaA_object_emit_signal(L, -1, "property::size", 0);
+        if (old_geometry.width != geometry.width)
+            luaA_object_emit_signal(L, -1, "property::width", 0);
+        else
+            luaA_object_emit_signal(L, -1, "property::height", 0);
+    }
     lua_pop(L, 1);
 
     screen_client_moveto(c, new_screen, false);
@@ -1904,53 +1941,79 @@ client_set_fullscreen(lua_State *L, int cidx, bool s)
     }
 }
 
-/** Get a clients maximized state (horizontally and vertically).
- * \param c The client.
- * \return The maximized state.
- */
-static int
-client_get_maximized(client_t *c)
-{
-    return c->maximized_horizontal && c->maximized_vertical;
-}
-
 /** Set a client horizontally|vertically maximized.
  * \param L The Lua VM state.
  * \param cidx The client index.
  * \param s The maximized status.
  */
-#define DO_FUNCTION_CLIENT_MAXIMIZED(type) \
-    void \
-    client_set_maximized_##type(lua_State *L, int cidx, bool s) \
-    { \
-        client_t *c = luaA_checkudata(L, cidx, &client_class); \
-        if(c->maximized_##type != s) \
-        { \
-            int abs_cidx = luaA_absindex(L, cidx); \
-            int max_before = client_get_maximized(c); \
-            c->maximized_##type = s; \
-            lua_pushstring(L, "maximized_"#type);\
-            luaA_object_emit_signal(L, abs_cidx, "request::geometry", 1); \
-            luaA_object_emit_signal(L, abs_cidx, "property::maximized_" #type, 0); \
-            if(max_before != client_get_maximized(c)) \
-                luaA_object_emit_signal(L, abs_cidx, "property::maximized", 0); \
-            stack_windows(); \
-        } \
-    }
-DO_FUNCTION_CLIENT_MAXIMIZED(vertical)
-DO_FUNCTION_CLIENT_MAXIMIZED(horizontal)
-#undef DO_FUNCTION_CLIENT_MAXIMIZED
+void
+client_set_maximized_common(lua_State *L, int cidx, bool s, const char* type, const int val)
+{
+    client_t *c = luaA_checkudata(L, cidx, &client_class);
 
-/** Set a client maximized (horizontally and vertically).
- * \param L The Lua VM state.
- * \param cidx The client index.
- * \param s Set or not the client maximized attribute.
- */
+    /* Store the current and next state on 2 bit */
+    const client_maximized_t current = (
+        (c->maximized_vertical   ? CLIENT_MAXIMIZED_V    : CLIENT_MAXIMIZED_NONE)|
+        (c->maximized_horizontal ? CLIENT_MAXIMIZED_H    : CLIENT_MAXIMIZED_NONE)|
+        (c->maximized            ? CLIENT_MAXIMIZED_BOTH : CLIENT_MAXIMIZED_NONE)
+    );
+    client_maximized_t next = s ? (val | current) : (current & (~val));
+
+    /* When both are already set during startup, assume `maximized` is true*/
+    if (next == (CLIENT_MAXIMIZED_H|CLIENT_MAXIMIZED_V) && !globalconf.loop)
+        next = CLIENT_MAXIMIZED_BOTH;
+
+    if(current != next)
+    {
+        int abs_cidx   = luaA_absindex(L, cidx);
+        int max_before = c->maximized;
+        int h_before   = c->maximized_horizontal;
+        int v_before   = c->maximized_vertical;
+
+        /*Update the client properties */
+        c->maximized_horizontal = !!(next & CLIENT_MAXIMIZED_H   );
+        c->maximized_vertical   = !!(next & CLIENT_MAXIMIZED_V   );
+        c->maximized            = !!(next & CLIENT_MAXIMIZED_BOTH);
+
+
+        /* Request the changes to be applied */
+        lua_pushstring(L, type);
+        luaA_object_emit_signal(L, abs_cidx, "request::geometry", 1);
+
+        /* Notify changes in the relevant properties */
+        if (h_before != c->maximized_horizontal)
+            luaA_object_emit_signal(L, abs_cidx, "property::maximized_horizontal", 0);
+        if (v_before != c->maximized_vertical)
+            luaA_object_emit_signal(L, abs_cidx, "property::maximized_vertical", 0);
+        if(max_before != c->maximized)
+            luaA_object_emit_signal(L, abs_cidx, "property::maximized", 0);
+
+        stack_windows();
+    }
+}
+
 void
 client_set_maximized(lua_State *L, int cidx, bool s)
 {
-    client_set_maximized_horizontal(L, cidx, s);
-    client_set_maximized_vertical(L, cidx, s);
+    return client_set_maximized_common(
+        L, cidx, s, "maximized", CLIENT_MAXIMIZED_BOTH
+    );
+}
+
+void
+client_set_maximized_horizontal(lua_State *L, int cidx, bool s)
+{
+    return client_set_maximized_common(
+        L, cidx, s, "maximized_horizontal", CLIENT_MAXIMIZED_H
+    );
+}
+
+void
+client_set_maximized_vertical(lua_State *L, int cidx, bool s)
+{
+    return client_set_maximized_common(
+        L, cidx, s, "maximized_vertical", CLIENT_MAXIMIZED_V
+    );
 }
 
 /** Set a client above, or not.
@@ -2991,14 +3054,8 @@ LUA_OBJECT_EXPORT_PROPERTY(client, client_t, sticky, lua_pushboolean)
 LUA_OBJECT_EXPORT_PROPERTY(client, client_t, size_hints_honor, lua_pushboolean)
 LUA_OBJECT_EXPORT_PROPERTY(client, client_t, maximized_horizontal, lua_pushboolean)
 LUA_OBJECT_EXPORT_PROPERTY(client, client_t, maximized_vertical, lua_pushboolean)
+LUA_OBJECT_EXPORT_PROPERTY(client, client_t, maximized, lua_pushboolean)
 LUA_OBJECT_EXPORT_PROPERTY(client, client_t, startup_id, lua_pushstring)
-
-static int
-luaA_client_get_maximized(lua_State *L, client_t *c)
-{
-    lua_pushboolean(L, client_get_maximized(c));
-    return 1;
-}
 
 static int
 luaA_client_get_content(lua_State *L, client_t *c)
@@ -3271,6 +3328,41 @@ luaA_client_set_shape_clip(lua_State *L, client_t *c)
     return 0;
 }
 
+/** Get the client's frame window input shape.
+ * \param L The Lua VM state.
+ * \param client The client object.
+ * \return The number of elements pushed on stack.
+ */
+static int
+luaA_client_get_shape_input(lua_State *L, client_t *c)
+{
+    cairo_surface_t *surf = xwindow_get_shape(c->frame_window, XCB_SHAPE_SK_INPUT);
+    if (!surf)
+        return 0;
+    /* lua has to make sure to free the ref or we have a leak */
+    lua_pushlightuserdata(L, surf);
+    return 1;
+}
+
+/** Set the client's frame window input shape.
+ * \param L The Lua VM state.
+ * \param client The client object.
+ * \return The number of elements pushed on stack.
+ */
+static int
+luaA_client_set_shape_input(lua_State *L, client_t *c)
+{
+    cairo_surface_t *surf = NULL;
+    if(!lua_isnil(L, -1))
+        surf = (cairo_surface_t *)lua_touserdata(L, -1);
+    xwindow_set_shape(c->frame_window,
+            c->geometry.width + (c->border_width * 2),
+            c->geometry.height + (c->border_width * 2),
+            XCB_SHAPE_SK_INPUT, surf, -c->border_width);
+    luaA_object_emit_signal(L, -3, "property::shape_input", 0);
+    return 0;
+}
+
 /** Get or set keys bindings for a client.
  *
  * @param keys_table An array of key bindings objects, or nothing.
@@ -3518,6 +3610,10 @@ client_class_setup(lua_State *L)
                             (lua_class_propfunc_t) luaA_client_set_shape_clip,
                             (lua_class_propfunc_t) luaA_client_get_shape_clip,
                             (lua_class_propfunc_t) luaA_client_set_shape_clip);
+    luaA_class_add_property(&client_class, "shape_input",
+                            (lua_class_propfunc_t) luaA_client_set_shape_input,
+                            (lua_class_propfunc_t) luaA_client_get_shape_input,
+                            (lua_class_propfunc_t) luaA_client_set_shape_input);
     luaA_class_add_property(&client_class, "startup_id",
                             NULL,
                             (lua_class_propfunc_t) luaA_client_get_startup_id,

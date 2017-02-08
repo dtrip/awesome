@@ -100,9 +100,9 @@ function widget.new()
             ['#21']="=",
             Control="Ctrl"
         },
+        _cached_wiboxes = {}
     }
 
-    local cached_wiboxes = {}
     local cached_awful_keys = nil
     local colors_counter = {}
     local colors = beautiful.xresources.get_current_theme()
@@ -227,7 +227,7 @@ function widget.new()
         local max_height_px = height - group_label_height
         local column_layouts = {}
         for _, group in ipairs(available_groups) do
-            local keys = cached_awful_keys[group] or widget_instance.additional_hotkeys[group]
+            local keys = awful.util.table.join(cached_awful_keys[group], widget_instance.additional_hotkeys[group])
             local joined_descriptions = ""
             for i, key in ipairs(keys) do
                 joined_descriptions = joined_descriptions .. key.description .. (i~=#keys and "\n" or "")
@@ -408,13 +408,13 @@ function widget.new()
         end
 
         local joined_groups = join_plus_sort(available_groups)
-        if not cached_wiboxes[s] then
-            cached_wiboxes[s] = {}
+        if not widget_instance._cached_wiboxes[s] then
+            widget_instance._cached_wiboxes[s] = {}
         end
-        if not cached_wiboxes[s][joined_groups] then
-            cached_wiboxes[s][joined_groups] = create_wibox(s, available_groups)
+        if not widget_instance._cached_wiboxes[s][joined_groups] then
+            widget_instance._cached_wiboxes[s][joined_groups] = create_wibox(s, available_groups)
         end
-        local help_wibox = cached_wiboxes[s][joined_groups]
+        local help_wibox = widget_instance._cached_wiboxes[s][joined_groups]
         help_wibox:show()
 
         return capi.keygrabber.run(function(_, key, event)
