@@ -56,6 +56,10 @@ there is an `s` variable represent to define the current screen. Any Lua
 logic expression can be used as long as it returns a valid widget or a
 declarative layout, or `nil`.
 
+### Composite widgets
+
+@DOC_wibox_widget_progressbar_encapsulation_EXAMPLE@
+
 
 ### Define widgets inline and place them
 
@@ -227,11 +231,15 @@ caught by a Lua `metatable` (operator overload).
 
 Code:
 
-    -- "Monkeypatch" a new function to wibox.widget.textbox to add vicious
+    -- "Monkeypatch" a new function to 3 widget classes to add vicious
     -- extension support
-    function wibox.widget.textbox:vicious(args)
-        local f = unpack or table.unpack -- Lua 5.1 compat
-        vicious.register(w, f(args))
+    for _, wdg in ipairs {
+        wibox.widget.textbox , wibox.widget.progressbar, wibox.widget.graph
+    } do
+        function wdg:vicious(args)
+            local f = unpack or table.unpack -- Lua 5.1 compat
+            vicious.register(self, f(args))
+        end
     end
 
     s.mywibox : setup {
