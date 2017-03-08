@@ -15,6 +15,7 @@ local capi =
     awesome = awesome,
 }
 local util = require("awful.util")
+local gmath = require("gears.math")
 local object = require("gears.object")
 local grect =  require("gears.geometry").rectangle
 
@@ -122,6 +123,28 @@ function screen.focus(_screen)
     end
 end
 
+--- Get the next screen in a specific direction.
+--
+-- This gets the next screen relative to this one in
+-- the specified direction.
+--
+-- @function screen:get_next_in_direction
+-- @param self Screen.
+-- @param dir The direction, can be either "up", "down", "left" or "right".
+function screen.object.get_next_in_direction(self, dir)
+    local sel = get_screen(self)
+    if not sel then
+        return
+    end
+
+    local geomtbl = {}
+    for s in capi.screen do
+        geomtbl[s] = s.geometry
+    end
+
+    return grect.get_in_direction(dir, geomtbl, sel.geometry)
+end
+
 --- Move the focus to a screen in a specific direction.
 --
 -- This moves the mouse pointer to the last known position on the new screen,
@@ -131,15 +154,10 @@ end
 -- @param _screen Screen.
 function screen.focus_bydirection(dir, _screen)
     local sel = get_screen(_screen or screen.focused())
-    if sel then
-        local geomtbl = {}
-        for s in capi.screen do
-            geomtbl[s] = s.geometry
-        end
-        local target = grect.get_in_direction(dir, geomtbl, sel.geometry)
-        if target then
-            return screen.focus(target)
-        end
+    local target = sel:get_next_in_direction(dir)
+
+    if target then
+        return target:focus()
     end
 end
 
@@ -152,7 +170,7 @@ end
 -- @tparam int offset Value to add to the current focused screen index. 1 to
 --   focus the next one, -1 to focus the previous one.
 function screen.focus_relative(offset)
-    return screen.focus(util.cycle(capi.screen.count(),
+    return screen.focus(gmath.cycle(capi.screen.count(),
                                    screen.focused().index + offset))
 end
 

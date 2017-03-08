@@ -145,7 +145,8 @@ function util.escape(text)
     return text and text:gsub("['&<>\"]", xml_entity_names) or nil
 end
 
-local xml_entity_chars = { lt = "<", gt = ">", nbsp = " ", quot = "\"", apos = "'", ndash = "-", mdash = "-", amp = "&" };
+local xml_entity_chars = { lt = "<", gt = ">", nbsp = " ", quot = "\"", apos = "'", ndash = "-", mdash = "-",
+    amp = "&" };
 --- Unescape a string from entities.
 -- @param text Text to unescape.
 -- @return Unescaped text.
@@ -511,7 +512,7 @@ function util.table.iterate(t, filter, start)
     return function ()
         while count < length do
             local item = t[index]
-            index = util.cycle(#t, index + 1)
+            index = gmath.cycle(#t, index + 1)
             count = count + 1
             if filter(item) then return item end
         end

@@ -10,6 +10,7 @@
 local util = require("awful.util")
 local ascreen = require("awful.screen")
 local beautiful = require("beautiful")
+local gmath = require("gears.math")
 local object = require("gears.object")
 local timer = require("gears.timer")
 local pairs = pairs
@@ -610,7 +611,7 @@ end
 function tag.setmwfact(mwfact, t)
     util.deprecate("Use t.master_width_factor = mwfact instead of awful.tag.setmwfact")
 
-    tag.object.get_master_width_factor(t or ascreen.focused().selected_tag, mwfact)
+    tag.object.set_master_width_factor(t or ascreen.focused().selected_tag, mwfact)
 end
 
 --- Increase master width factor.
@@ -1198,7 +1199,7 @@ function tag.viewidx(i, screen)
     tag.viewnone(screen)
     for k, t in ipairs(showntags) do
         if t == sel then
-            showntags[util.cycle(#showntags, k + i)].selected = true
+            showntags[gmath.cycle(#showntags, k + i)].selected = true
         end
     end
     screen:emit_signal("tag::history::update")
