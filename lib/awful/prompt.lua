@@ -126,6 +126,9 @@ local util = require("awful.util")
 local beautiful = require("beautiful")
 local akey = require("awful.key")
 local debug = require('gears.debug')
+local gtable = require("gears.table")
+local gcolor = require("gears.color")
+local gstring = require("gears.string")
 
 local prompt = {}
 
@@ -156,7 +159,7 @@ local function history_check_load(id, max)
 
         -- Read history file
         for line in f:lines() do
-            if util.table.hasitem(data.history[id].table, line) == nil then
+            if gtable.hasitem(data.history[id].table, line) == nil then
                 table.insert(data.history[id].table, line)
                 if #data.history[id].table >= data.history[id].max then
                     break
@@ -239,7 +242,7 @@ end
 -- @param command The command to add
 local function history_add(id, command)
     if data.history[id] and command ~= "" then
-        local index = util.table.hasitem(data.history[id].table, command)
+        local index = gtable.hasitem(data.history[id].table, command)
         if index == nil then
             table.insert(data.history[id].table, command)
 
@@ -276,24 +279,24 @@ local function prompt_text_with_cursor(args)
     local underline = args.cursor_ul or "none"
 
     if args.selectall then
-        if #text == 0 then char = " " else char = util.escape(text) end
+        if #text == 0 then char = " " else char = gstring.xml_escape(text) end
         spacer = " "
         text_start = ""
         text_end = ""
     elseif #text < args.cursor_pos then
         char = " "
         spacer = ""
-        text_start = util.escape(text)
+        text_start = gstring.xml_escape(text)
         text_end = ""
     else
-        char = util.escape(text:sub(args.cursor_pos, args.cursor_pos))
+        char = gstring.xml_escape(text:sub(args.cursor_pos, args.cursor_pos))
         spacer = " "
-        text_start = util.escape(text:sub(1, args.cursor_pos - 1))
-        text_end = util.escape(text:sub(args.cursor_pos + 1))
+        text_start = gstring.xml_escape(text:sub(1, args.cursor_pos - 1))
+        text_end = gstring.xml_escape(text:sub(args.cursor_pos + 1))
     end
 
-    local cursor_color = util.ensure_pango_color(args.cursor_color)
-    local text_color = util.ensure_pango_color(args.text_color)
+    local cursor_color = gcolor.ensure_pango_color(args.cursor_color)
+    local text_color = gcolor.ensure_pango_color(args.text_color)
 
     if args.highlighter then
         text_start, text_end = args.highlighter(text_start, text_end)
@@ -593,7 +596,7 @@ function prompt.run(args, textbox, exe_callback, completion_callback,
         if hooks[key] then
             -- Remove caps and num lock
             for _, m in ipairs(modifiers) do
-                if not util.table.hasitem(akey.ignore_modifiers, m) then
+                if not gtable.hasitem(akey.ignore_modifiers, m) then
                     table.insert(filtered_modifiers, m)
                 end
             end
