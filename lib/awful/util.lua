@@ -11,21 +11,20 @@ local os = os
 local assert = assert
 local load = loadstring or load -- luacheck: globals loadstring (compatibility with Lua 5.1)
 local loadfile = loadfile
-local debug = debug
 local pairs = pairs
 local type = type
 local gtable = require("gears.table")
 local string = string
 local gstring = require("gears.string")
 local grect = require("gears.geometry").rectangle
-local Gio = require("lgi").Gio
 local gcolor = require("gears.color")
+local gfs = require("gears.filesystem")
 local capi =
 {
     awesome = awesome,
     mouse = mouse
 }
-local gears_debug = require("gears.debug")
+local gdebug = require("gears.debug")
 local gmath = require("gears.math")
 
 local util = {}
@@ -34,71 +33,32 @@ util.table = {}
 --- The default shell used when spawing processes.
 util.shell = os.getenv("SHELL") or "/bin/sh"
 
-local displayed_deprecations = {}
 --- Display a deprecation notice, but only once per traceback.
+-- @deprecated deprecate
 -- @param[opt] see The message to a new method / function to use.
 -- @tparam table args Extra arguments
 -- @tparam boolean args.raw Print the message as-is without the automatic context
 -- @tparam integer args.deprecated_in Print the message only when Awesome's
 --   version is equal to or greater than deprecated_in.
+-- @see gears.debug
 function util.deprecate(see, args)
-    args = args or {}
-    if args.deprecated_in then
-        local dep_ver = "v" .. tostring(args.deprecated_in)
-        if awesome.version < dep_ver then
-            return
-        end
-    end
-    local tb = debug.traceback()
-    if displayed_deprecations[tb] then
-        return
-    end
-    displayed_deprecations[tb] = true
+    gdebug.deprecate("gears.debug.deprecate", {deprecated_in=5})
 
-    -- Get function name/desc from caller.
-    local info = debug.getinfo(2, "n")
-    local funcname = info.name or "?"
-    local msg = "awful: function " .. funcname .. " is deprecated"
-    if see then
-        if args.raw then
-            msg = see
-        elseif string.sub(see, 1, 3) == 'Use' then
-            msg = msg .. ". " .. see
-        else
-            msg = msg .. ", see " .. see
-        end
-    end
-    gears_debug.print_warning(msg .. ".\n" .. tb)
+    return gdebug.deprecate(see, args)
 end
 
 --- Create a class proxy with deprecation messages.
 -- This is useful when a class has moved somewhere else.
+-- @deprecated deprecate_class
 -- @tparam table fallback The new class
 -- @tparam string old_name The old class name
 -- @tparam string new_name The new class name
 -- @treturn table A proxy class.
+-- @see gears.debug
 function util.deprecate_class(fallback, old_name, new_name)
-    local message = old_name.." has been renamed to "..new_name
+    gdebug.deprecate("gears.debug.deprecate_class", {deprecated_in=5})
 
-    local function call(_,...)
-        util.deprecate(message, {raw = true})
-
-        return fallback(...)
-    end
-
-    local function index(_, k)
-        util.deprecate(message, {raw = true})
-
-        return fallback[k]
-    end
-
-    local function newindex(_, k, v)
-        util.deprecate(message, {raw = true})
-
-        fallback[k] = v
-    end
-
-    return setmetatable({}, {__call = call, __index = index, __newindex  = newindex})
+    return gdebug.deprecate_class(fallback, old_name, new_name)
 end
 
 --- Get a valid color for Pango markup
@@ -108,7 +68,7 @@ end
 -- @treturn string color if it is valid, else fallback.
 -- @see gears.color
 function util.ensure_pango_color(color, fallback)
-    util.deprecate("gears.color.ensure_pango_color")
+    gdebug.deprecate("gears.color.ensure_pango_color", {deprecated_in=5})
 
     return gcolor.ensure_pango_color(color, fallback)
 end
@@ -120,16 +80,20 @@ end
 -- @return An integer in (1, t) or nil if t is less than or equal to zero.
 -- @see gears.math
 function util.cycle(t, i)
-    util.deprecate("gears.math.cycle", {deprecated_in=5})
+    gdebug.deprecate("gears.math.cycle", {deprecated_in=5})
 
     return gmath.cycle(t, i)
 end
 
 --- Create a directory
+-- @deprecated mkdir
 -- @param dir The directory.
 -- @return mkdir return code
+-- @see gears.filesystem
 function util.mkdir(dir)
-    return os.execute("mkdir -p " .. dir)
+    util.deprecate("gears.filesystem.mkdir", {deprecated_in=5})
+
+    return gfs.mkdir(dir)
 end
 
 --- Eval Lua code.
@@ -145,7 +109,7 @@ end
 -- @return Escape text.
 -- @see gears.string
 function util.escape(text)
-    util.deprecate("gears.string.xml_escape", {deprecated_in=5})
+    gdebug.deprecate("gears.string.xml_escape", {deprecated_in=5})
 
     return gstring.xml_escape(text)
 end
@@ -156,7 +120,7 @@ end
 -- @return Unescaped text.
 -- @see gears.string
 function util.unescape(text)
-    util.deprecate("gears.string.xml_unescape", {deprecated_in=5})
+    gdebug.deprecate("gears.string.xml_unescape", {deprecated_in=5})
 
     return gstring.xml_unescape(text)
 end
@@ -188,55 +152,77 @@ function util.restart()
 end
 
 --- Get the config home according to the XDG basedir specification.
+-- @deprecated get_xdg_config_home
 -- @return the config home (XDG_CONFIG_HOME) with a slash at the end.
+-- @see gears.filesystem
 function util.get_xdg_config_home()
-    return (os.getenv("XDG_CONFIG_HOME") or os.getenv("HOME") .. "/.config") .. "/"
+    util.deprecate("gears.filesystem.get_xdg_config_home", {deprecated_in=5})
+
+    return gfs.get_xdg_config_home()
 end
 
 --- Get the cache home according to the XDG basedir specification.
+-- @deprecated get_xdg_cache_home
 -- @return the cache home (XDG_CACHE_HOME) with a slash at the end.
+-- @see gears.filesystem
 function util.get_xdg_cache_home()
-    return (os.getenv("XDG_CACHE_HOME") or os.getenv("HOME") .. "/.cache") .. "/"
+    util.deprecate("gears.filesystem.get_xdg_cache_home", {deprecated_in=5})
+
+    return gfs.get_xdg_cache_home()
 end
 
 --- Get the path to the user's config dir.
 -- This is the directory containing the configuration file ("rc.lua").
+-- @deprecated get_configuration_dir
 -- @return A string with the requested path with a slash at the end.
+-- @see gears.filesystem
 function util.get_configuration_dir()
-    return capi.awesome.conffile:match(".*/") or "./"
+    util.deprecate("gears.filesystem.get_configuration_dir", {deprecated_in=5})
+
+    return gfs.get_configuration_dir()
 end
 
 --- Get the path to a directory that should be used for caching data.
+-- @deprecated get_cache_dir
 -- @return A string with the requested path with a slash at the end.
+-- @see gears.filesystem
 function util.get_cache_dir()
-    return util.get_xdg_cache_home() .. "awesome/"
+    util.deprecate("gears.filesystem.get_cache_dir", {deprecated_in=5})
+
+    return gfs.get_cache_dir()
 end
 
 --- Get the path to the directory where themes are installed.
+-- @deprecated get_themes_dir
 -- @return A string with the requested path with a slash at the end.
+-- @see gears.filesystem
 function util.get_themes_dir()
-    return (os.getenv('AWESOME_THEMES_PATH') or awesome.themes_path) .. "/"
+    util.deprecate("gears.filesystem.get_themes_dir", {deprecated_in=5})
+
+    return gfs.get_themes_dir()
 end
 
 --- Get the path to the directory where our icons are installed.
+-- @deprecated get_awesome_icon_dir
 -- @return A string with the requested path with a slash at the end.
+-- @see gears.filesystem
 function util.get_awesome_icon_dir()
-    return (os.getenv('AWESOME_ICON_PATH') or awesome.icon_path) .. "/"
+    util.deprecate("gears.filesystem.get_awesome_icon_dir", {deprecated_in=5})
+
+    return gfs.get_awesome_icon_dir()
 end
 
 --- Get the user's config or cache dir.
 -- It first checks XDG_CONFIG_HOME / XDG_CACHE_HOME, but then goes with the
 -- default paths.
+-- @deprecated getdir
 -- @param d The directory to get (either "config" or "cache").
 -- @return A string containing the requested path.
+-- @see gears.filesystem
 function util.getdir(d)
-    if d == "config" then
-        -- No idea why this is what is returned, I recommend everyone to use
-        -- get_configuration_dir() instead
-        return util.get_xdg_config_home() .. "awesome/"
-    elseif d == "cache" then
-        return util.get_cache_dir()
-    end
+    util.deprecate("gears.filesystem.get_dir", {deprecated_in=5})
+
+    return gfs.get_dir(d)
 end
 
 --- Search for an icon and return the full path.
@@ -256,13 +242,13 @@ function util.geticonpath(iconname, exts, dirs, size)
         local icon
         for _, e in pairs(exts) do
             icon = d .. iconname .. '.' .. e
-            if util.file_readable(icon) then
+            if gfs.file_readable(icon) then
                 return icon
             end
             if size then
                 for _, t in pairs(icontypes) do
                     icon = string.format("%s%ux%u/%s/%s.%s", d, size, size, t, iconname, e)
-                    if util.file_readable(icon) then
+                    if gfs.file_readable(icon) then
                         return icon
                     end
                 end
@@ -271,33 +257,37 @@ function util.geticonpath(iconname, exts, dirs, size)
     end
 end
 
---- Check if a file exists, is not readable and not a directory.
+--- Check if a file exists, is readable and not a directory.
+-- @deprecated file_readable
 -- @param filename The file path.
 -- @return True if file exists and is readable.
+-- @see gears.filesystem
 function util.file_readable(filename)
-    local gfile = Gio.File.new_for_path(filename)
-    local gfileinfo = gfile:query_info("standard::type,access::can-read",
-                                       Gio.FileQueryInfoFlags.NONE)
-    return gfileinfo and gfileinfo:get_file_type() ~= "DIRECTORY" and
-        gfileinfo:get_attribute_boolean("access::can-read")
+    util.deprecate("gears.filesystem.file_readable", {deprecated_in=5})
+
+    return gfs.file_readable(filename)
 end
 
 --- Check if a path exists, is readable and is a directory.
+-- @deprecated dir_readable
 -- @tparam string path The directory path.
 -- @treturn boolean True if dir exists and is readable.
+-- @see gears.filesystem
 function util.dir_readable(path)
-    local gfile = Gio.File.new_for_path(path)
-    local gfileinfo = gfile:query_info("standard::type,access::can-read",
-                                       Gio.FileQueryInfoFlags.NONE)
-    return gfileinfo and gfileinfo:get_file_type() == "DIRECTORY" and
-        gfileinfo:get_attribute_boolean("access::can-read")
+    util.deprecate("gears.filesystem.dir_readable", {deprecated_in=5})
+
+    return gfs.dir_readable(path)
 end
 
 --- Check if a path is a directory.
+-- @deprecated is_dir
 -- @tparam string path
 -- @treturn bool True if path exists and is a directory.
+-- @see gears.filesystem
 function util.is_dir(path)
-    return Gio.File.new_for_path(path):query_file_type({}) == "DIRECTORY"
+    util.deprecate("gears.filesystem.is_dir", {deprecated_in=5})
+
+    return gfs.is_dir(path)
 end
 
 --- Return all subsets of a specific set.
@@ -310,7 +300,7 @@ end
 -- @return A table with all subset.
 -- @see gears.math
 function util.subsets(set)
-    util.deprecate("gears.math.subsets", {deprecated_in=5})
+    gdebug.deprecate("gears.math.subsets", {deprecated_in=5})
 
     return gmath.subsets(set)
 end
@@ -324,7 +314,7 @@ end
 -- @return The index for the rectangle in recttbl closer to cur in the given direction. nil if none found.
 -- @see gears.geometry
 function util.get_rectangle_in_direction(dir, recttbl, cur)
-    util.deprecate("gears.geometry.rectangle.get_in_direction")
+    gdebug.deprecate("gears.geometry.rectangle.get_in_direction", {deprecated_in=4})
 
     return grect.get_in_direction(dir, recttbl, cur)
 end
@@ -336,7 +326,7 @@ end
 -- @return A new table containing all keys from the arguments.
 -- @see gears.table
 function util.table.join(...)
-    util.deprecate("gears.table.join", {deprecated_in=5})
+    gdebug.deprecate("gears.table.join", {deprecated_in=5})
 
     return gtable.join(...)
 end
@@ -351,7 +341,7 @@ end
 -- @treturn table t (for convenience)
 -- @see gears.table
 function util.table.crush(t, set, raw)
-    util.deprecate("gears.table.crush", {deprecated_in=5})
+    gdebug.deprecate("gears.table.crush", {deprecated_in=5})
 
     return gtable.crush(t, set, raw)
 end
@@ -368,7 +358,7 @@ end
 -- @treturn table A packed table with all numeric keys
 -- @see gears.table
 function util.table.from_sparse(t)
-    util.deprecate("gears.table.from_sparse", {deprecated_in=5})
+    gdebug.deprecate("gears.table.from_sparse", {deprecated_in=5})
 
     return gtable.from_sparse(t)
 end
@@ -380,7 +370,7 @@ end
 -- @return The key were the item is found, or nil if not found.
 -- @see gears.table
 function util.table.hasitem(t, item)
-    util.deprecate("gears.table.hasitem", {deprecated_in=5})
+    gdebug.deprecate("gears.table.hasitem", {deprecated_in=5})
 
     return gtable.hasitem(t, item)
 end
@@ -393,7 +383,7 @@ end
 -- @return The string with lines wrapped to width.
 -- @see gears.string
 function util.linewrap(text, width, indent)
-    util.deprecate("gears.string.linewrap", {deprecated_in=5})
+    gdebug.deprecate("gears.string.linewrap", {deprecated_in=5})
 
     return gstring.linewrap(text, width, indent)
 end
@@ -404,7 +394,7 @@ end
 -- @treturn int Number of lines.
 -- @see gears.string
 function util.linecount(text)
-    util.deprecate("gears.string.linecount", {deprecated_in=5})
+    gdebug.deprecate("gears.string.linecount", {deprecated_in=5})
 
     return gstring.linecount(text)
 end
@@ -415,7 +405,7 @@ end
 -- @return A table with keys
 -- @see gears.table
 function util.table.keys(t)
-    util.deprecate("gears.table.keys", {deprecated_in=5})
+    gdebug.deprecate("gears.table.keys", {deprecated_in=5})
 
     return gtable.keys(t)
 end
@@ -427,7 +417,7 @@ end
 -- @return A filtered table with keys
 -- @see gears.table
 function util.table.keys_filter(t, ...)
-    util.deprecate("gears.table.keys_filter", {deprecated_in=5})
+    gdebug.deprecate("gears.table.keys_filter", {deprecated_in=5})
 
     return gtable.keys_filter(t, ...)
 end
@@ -438,7 +428,7 @@ end
 -- @return the reversed table
 -- @see gears.table
 function util.table.reverse(t)
-    util.deprecate("gears.table.reverse", {deprecated_in=5})
+    gdebug.deprecate("gears.table.reverse", {deprecated_in=5})
 
     return gtable.reverse(t)
 end
@@ -450,7 +440,7 @@ end
 -- @return a clone of t
 -- @see gears.table
 function util.table.clone(t, deep)
-    util.deprecate("gears.table.clone", {deprecated_in=5})
+    gdebug.deprecate("gears.table.clone", {deprecated_in=5})
 
     return gtable.clone(t, deep)
 end
@@ -466,7 +456,7 @@ end
 -- the table)
 -- @see gears.table
 function util.table.iterate(t, filter, start)
-    util.deprecate("gears.table.iterate", {deprecated_in=5})
+    gdebug.deprecate("gears.table.iterate", {deprecated_in=5})
 
     return gtable.iterate(t, filter, start)
 end
@@ -479,7 +469,7 @@ end
 -- @treturn table Return `t` for convenience
 -- @see gears.table
 function util.table.merge(t, set)
-    util.deprecate("gears.table.merge", {deprecated_in=5})
+    gdebug.deprecate("gears.table.merge", {deprecated_in=5})
 
     return gtable.merge(t, set)
 end
@@ -491,7 +481,7 @@ end
 -- @deprecated util.quote_pattern
 -- @see gears.string
 function util.quote_pattern(s)
-    util.deprecate("gears.string.quote_pattern", {deprecated_in=5})
+    gdebug.deprecate("gears.string.quote_pattern", {deprecated_in=5})
 
     return gstring.quote_pattern(s)
 end
@@ -501,7 +491,7 @@ end
 -- @deprecated util.query_to_pattern
 -- @see gears.string
 function util.query_to_pattern(q)
-    util.deprecate("gears.string.query_to_pattern", {deprecated_in=5})
+    gdebug.deprecate("gears.string.query_to_pattern", {deprecated_in=5})
 
     return gstring.query_to_pattern(q)
 end
@@ -512,7 +502,7 @@ end
 -- @treturn integer
 -- @see gears.math
 function util.round(x)
-    util.deprecate("gears.math.round", {deprecated_in=5})
+    gdebug.deprecate("gears.math.round", {deprecated_in=5})
 
     return gmath.round(x)
 end
