@@ -14,7 +14,7 @@ env:
     # Lua 5.3 isn't available in Ubuntu Trusty, so some magic below installs it.
     - LUA=5.3 LUANAME=lua5.3 LUALIBRARY=/usr/lib/liblua.so DO_COVERAGE=codecov
     # luajit: installed from source.
-    - LUA=5.1 LUANAME=luajit-2.0 LUALIBRARY=/usr/lib/libluajit-5.1.so LUAROCKS_ARGS=--lua-suffix=jit-2.0.4 TEST_PREV_COMMITS=1 EMPTY_THEME_WHILE_LOADING=1
+    - LUA=5.1 LUANAME=luajit-2.0 LUALIBRARY=/usr/lib/libluajit-5.1.so LUAROCKS_ARGS=--lua-suffix=jit-2.0.5 TEST_PREV_COMMITS=1 EMPTY_THEME_WHILE_LOADING=1
     # Note: luarocks does not work with Lua 5.0.
     - LUA=5.1 LUANAME=lua5.1 BUILD_IN_DIR=/tmp/awesome-build
     # Lua 5.2 with older lgi and screen size not divisible by 2.
@@ -124,6 +124,14 @@ install:
       fi
       return 0
     }
+  - |
+    do_codecov_gcov() {
+      echo "== do_codecov_gcov in $PWD: $*: =="
+      if [ "$DO_COVERAGE" = "codecov" ]; then
+        travis_retry bash /tmp/codecov-bash -X coveragepy -c -F "$1" || return 1
+      fi
+      return 0
+    }
 
   # Functions for custom Travis folds.
   - |
@@ -143,6 +151,12 @@ install:
     }
 script:
   - export CMAKE_ARGS="-DLUA_LIBRARY=${LUALIBRARY} -DLUA_INCLUDE_DIR=${LUAINCLUDE} -D OVERRIDE_VERSION=$AWESOME_VERSION -DSTRICT_TESTS=true"
+  - |
+    if [ "$DO_COVERAGE" = "codecov" ]; then
+      export CXXFLAGS="-fprofile-arcs -ftest-coverage"
+      export CFLAGS="-fprofile-arcs -ftest-coverage"
+      export LDFLAFS="-fprofile-arcs -ftest-coverage"
+    fi
   - |
     if [ "$EMPTY_THEME_WHILE_LOADING" = 1 ]; then
       # Break beautiful so that trying to access the theme before beautiful.init() causes an error
@@ -181,7 +195,9 @@ script:
         (make check-unit-coverage \
          && do_codecov unittests \
          && tests/run.sh \
-         && do_codecov functionaltests)
+         && do_codecov functionaltests \
+         && gcov $(find -name '*.o') \
+         && do_codecov_gcov c_code)
         ret=$?
         travis_fold_end
         [ "$ret" = 0 ]
