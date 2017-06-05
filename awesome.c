@@ -59,7 +59,7 @@
 awesome_t globalconf;
 
 /** argv used to run awesome */
-static char *awesome_argv;
+static char **awesome_argv;
 
 /** time of last main loop wakeup */
 static struct timeval last_wakeup;
@@ -463,7 +463,8 @@ void
 awesome_restart(void)
 {
     awesome_atexit(true);
-    a_exec(awesome_argv);
+    execvp(awesome_argv[0], spawn_transform_commandline(awesome_argv));
+    fatal("execv() failed: %s", strerror(errno));
 }
 
 /** Function to restart awesome on some signals.
@@ -511,8 +512,7 @@ main(int argc, char **argv)
 {
     char *confpath = NULL;
     string_array_t searchpath;
-    int xfd, i, opt;
-    ssize_t cmdlen = 1;
+    int xfd, opt;
     xdgHandle xdg;
     bool no_argb = false;
     bool run_test = false;
@@ -527,6 +527,7 @@ main(int argc, char **argv)
         { "search",  1, NULL, 's' },
         { "no-argb", 0, NULL, 'a' },
         { "replace", 0, NULL, 'r' },
+        { "reap",    1, NULL, '\1' },
         { NULL,      0, NULL, 0 }
     };
 
@@ -543,17 +544,7 @@ main(int argc, char **argv)
     string_array_init(&searchpath);
 
     /* save argv */
-    for(i = 0; i < argc; i++)
-        cmdlen += a_strlen(argv[i]) + 1;
-
-    awesome_argv = p_new(char, cmdlen);
-    a_strcpy(awesome_argv, cmdlen, argv[0]);
-
-    for(i = 1; i < argc; i++)
-    {
-        a_strcat(awesome_argv, cmdlen, " ");
-        a_strcat(awesome_argv, cmdlen, argv[i]);
-    }
+    awesome_argv = argv;
 
     /* Text won't be printed correctly otherwise */
     setlocale(LC_CTYPE, "");
@@ -585,6 +576,9 @@ main(int argc, char **argv)
             break;
           case 'r':
             replace_wm = true;
+            break;
+          case '\1':
+            spawn_handle_reap(optarg);
             break;
           default:
             exit_help(EXIT_FAILURE);
