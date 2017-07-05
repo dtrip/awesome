@@ -22,11 +22,11 @@ local screen = require("awful.screen")
 local util = require("awful.util")
 local gtable = require("gears.table")
 local gfs = require("gears.filesystem")
-local bt = require("beautiful")
+local beautiful = require("beautiful")
 local wibox = require("wibox")
 local surface = require("gears.surface")
 local cairo = require("lgi").cairo
-local dpi = bt.xresources.apply_dpi
+local dpi = beautiful.xresources.apply_dpi
 
 local function get_screen(s)
     return s and capi.screen[s]
@@ -51,6 +51,10 @@ notifications, e.g.
         args.text = 'prefix: ' .. args.text
         return args
     end
+  To reject a notification return `nil` from the callback.
+  If the notification is a freedesktop notification received via DBUS, you can
+  access the freedesktop hints via `args.freedesktop_hints` if any where
+  specified.
 
 @tfield table presets Notification presets.  See `config.presets`.
 
@@ -217,11 +221,7 @@ end)
 
 capi.screen.connect_signal("removed", function(scr)
     -- Destroy all notifications on this screen
-    for _, list in pairs(naughty.notifications[scr]) do
-        while #list > 0 do
-            naughty.destroy(list[1])
-        end
-    end
+    naughty.destroy_all_notifications({scr})
     naughty.notifications[scr] = nil
 end)
 
@@ -362,6 +362,32 @@ function naughty.destroy(notification, reason, keep_visible)
         end
         return true
     end
+end
+
+--- Destroy all notifications on given screens.
+--
+-- @tparam table screens Table of screens on which notifications should be
+-- destroyed. If nil, destroy notifications on all screens.
+-- @tparam naughty.notificationClosedReason reason Reason for closing
+-- notifications.
+-- @treturn true|nil True if all notifications were successfully destroyed, nil
+-- otherwise.
+function naughty.destroy_all_notifications(screens, reason)
+    if not screens then
+        screens = {}
+        for key, _ in pairs(naughty.notifications) do
+            table.insert(screens, key)
+        end
+    end
+    local ret = true
+    for _, scr in pairs(screens) do
+        for _, list in pairs(naughty.notifications[scr]) do
+            while #list > 0 do
+                ret = ret and naughty.destroy(list[1], reason)
+            end
+        end
+    end
+    return ret
 end
 
 --- Get notification by ID
@@ -591,8 +617,7 @@ function naughty.notify(args)
     local destroy_cb = args.destroy
 
     -- beautiful
-    local beautiful = bt.get()
-    local font = args.font or preset.font or
+    local font = args.font or preset.font or beautiful.notification_font or
         beautiful.font or capi.awesome.font
     local fg = args.fg or preset.fg or
         beautiful.notification_fg or beautiful.fg_normal or '#ffffff'

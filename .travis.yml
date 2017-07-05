@@ -14,11 +14,11 @@ env:
     # Lua 5.3 isn't available in Ubuntu Trusty, so some magic below installs it.
     - LUA=5.3 LUANAME=lua5.3 LUALIBRARY=/usr/lib/liblua.so DO_COVERAGE=codecov
     # luajit: installed from source.
-    - LUA=5.1 LUANAME=luajit-2.0 LUALIBRARY=/usr/lib/libluajit-5.1.so LUAROCKS_ARGS=--lua-suffix=jit-2.0.5 TEST_PREV_COMMITS=1 EMPTY_THEME_WHILE_LOADING=1
+    - LUA=5.1 LUANAME=luajit-2.0 LUALIBRARY=/usr/lib/libluajit-5.1.so LUAROCKS_ARGS=--lua-suffix=jit-2.0.5 TEST_PREV_COMMITS=1
     # Note: luarocks does not work with Lua 5.0.
     - LUA=5.1 LUANAME=lua5.1 BUILD_IN_DIR=/tmp/awesome-build
     # Lua 5.2 with older lgi and screen size not divisible by 2.
-    - LUA=5.2 LUANAME=lua5.2 LGIVER=0.8.0 TESTS_SCREEN_SIZE=1921x1079 BUILD_APIDOC=true DO_CHECKQA=1
+    - LUA=5.2 LUANAME=lua5.2 LGIVER=0.8.0 TESTS_SCREEN_SIZE=1921x1079 BUILD_APIDOC=true DO_CHECKQA=1 EMPTY_THEME_WHILE_LOADING=1
   global:
     # Secure GH_APIDOC_TOKEN to push to awesomeWM/apidoc.
     - secure: "R/HYDclnws1I1+v9Yjt+RKa4CsFhbBT9tiwE3EfPhEj2KCYX4sFRMxuZvLf5sq0XWdrQaPhQ54fgAZGr3f054JKRXcTB0g9J6nhSHz9kIjPh446gafUhEeDQcZRwM/MeCWiwFIkiZm6smYoDFE9JTWu6quNV+lQ4kcVDOp2ibEc="
@@ -40,8 +40,8 @@ install:
   # See also `apt-cache showsrc awesome | grep -E '^(Version|Build-Depends)'`.
   - sudo apt-get install -y libcairo2-dev gir1.2-gtk-3.0 xmlto asciidoc libpango1.0-dev libxcb-xtest0-dev libxcb-icccm4-dev libxcb-randr0-dev libxcb-keysyms1-dev libxcb-xinerama0-dev libdbus-1-dev libxdg-basedir-dev libstartup-notification0-dev imagemagick libxcb1-dev libxcb-shape0-dev libxcb-util0-dev libx11-xcb-dev libxcb-cursor-dev libxcb-xkb-dev libxkbcommon-dev libxkbcommon-x11-dev
 
-  # Deps for functional tests.
-  - sudo apt-get install -y dbus-x11 xterm xdotool xterm xvfb
+  # Deps for tests.
+  - sudo apt-get install -y dbus-x11 xterm xdotool xterm xvfb zsh
 
   # Need xorg-macros
   - sudo apt-get install -y xutils-dev
@@ -142,7 +142,7 @@ install:
     travis_run_in_fold() {
       travis_fold_start "$1"
       shift
-      "$@" || return
+      "$@" || return 1
       travis_fold_end
       return 0
     }
@@ -189,15 +189,14 @@ script:
          && cmake $CMAKE_ARGS ..)
         do_codecov samples
 
-        (make check-unit-coverage \
-         && do_codecov unittests \
-         && tests/run.sh \
-         && do_codecov functionaltests \
-         && gcov $(find -name '*.o') \
-         && do_codecov_gcov c_code)
-        ret=$?
+        make check-unit-coverage
+        do_codecov unittests
+        tests/run.sh
+        do_codecov functionaltests
+        gcov $(find -name '*.o')
+        do_codecov_gcov c_code
+
         travis_fold_end
-        [ "$ret" = 0 ]
       else
         travis_run_in_fold "make.check-unit" make check-unit
         travis_run_in_fold "make.check-integration" make check-integration
