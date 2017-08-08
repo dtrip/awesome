@@ -137,6 +137,7 @@ local function apply_shape(self)
     s(cr, w, h, unpack(self._private.shape_args or {}))
     cr:fill()
     wb.shape_bounding = img._native
+    img:finish()
 
     -- The wibox background uses ARGB32 border so tooltip anti-aliasing works
     -- when an external compositor is used. This will look better than
@@ -146,8 +147,7 @@ local function apply_shape(self)
 
     -- Draw the border (multiply by 2, then mask the inner part to save a path)
     local bw = (self._private.border_width
-        or beautiful.tooltip_border_width
-        or beautiful.border_width or 0) * 2
+        or beautiful.tooltip_border_width or 0) * 2
 
     -- Fix anti-aliasing
     if bw > 2 and awesome.composite_manager_running then
@@ -580,6 +580,7 @@ function tooltip.new(args)
         fg = fg,
         bg = color.transparent,
         opacity = beautiful.tooltip_opacity or 1,
+        type = "tooltip",
     }
 
     self.textbox = textbox()
