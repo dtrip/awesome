@@ -148,10 +148,6 @@ target_link_libraries(${PROJECT_AWE_NAME}
     ${AWESOME_REQUIRED_LDFLAGS}
     ${AWESOME_OPTIONAL_LDFLAGS})
 
-# check for lgi and the needed gobject introspection files
-add_custom_target(lgi-check ALL
-    COMMAND ${SOURCE_DIR}/build-utils/lgi-check.sh)
-
 # {{{ Generated sources
 # atoms
 file(MAKE_DIRECTORY ${BUILD_DIR}/common)
@@ -317,7 +313,7 @@ endif()
 # }}}
 
 # {{{ Theme icons
-file(GLOB icon_sources RELATIVE ${SOURCE_DIR} ${SOURCE_DIR}/themes/*/titlebar/*.png)
+file(GLOB_RECURSE icon_sources RELATIVE ${SOURCE_DIR} ${SOURCE_DIR}/themes/*.png)
 
 foreach(icon ${icon_sources})
     # Copy all icons to the build dir to simplify the following code.
@@ -399,12 +395,20 @@ add_executable(test-gravity tests/test-gravity.c)
 target_link_libraries(test-gravity
     ${AWESOME_COMMON_REQUIRED_LDFLAGS} ${AWESOME_REQUIRED_LDFLAGS})
 add_custom_target(check-integration
-    sh -c "CMAKE_BINARY_DIR='${CMAKE_BINARY_DIR}' ${CMAKE_SOURCE_DIR}/tests/run.sh"
+    ${CMAKE_COMMAND} -E env CMAKE_BINARY_DIR='${CMAKE_BINARY_DIR}' ./tests/run.sh \$\${TEST_RUN_ARGS:--W}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Running integration tests"
-    USES_TERMINAL
-    VERBATIM)
+    USES_TERMINAL)
 add_dependencies(check-integration test-gravity)
+add_custom_target(check-themes
+    ${CMAKE_SOURCE_DIR}/tests/themes/run.sh
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Testing themes"
+    USES_TERMINAL
+    DEPENDS generated_icons generate_awesomerc ${PROJECT_AWE_NAME}
+    VERBATIM)
+list(APPEND CHECK_TARGETS check-themes)
+
 add_custom_target(check-requires
     lua "${CMAKE_SOURCE_DIR}/build-utils/check_for_invalid_requires.lua"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

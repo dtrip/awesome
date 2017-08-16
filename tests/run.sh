@@ -15,8 +15,31 @@ set -e
 export SHELL=/bin/sh
 export HOME=/dev/null
 
-VERBOSE=${VERBOSE-0}
-if [ "$VERBOSE" = 1 ]; then
+# Parse options.
+usage() {
+    cat >&2 <<EOF
+Usage: $0 [OPTION]... [FILE]...
+
+Options:
+  -v: verbose mode
+  -W: warnings become errors
+  -h: show this help
+EOF
+    exit "$1"
+}
+fail_on_warning=
+verbose=${VERBOSE:-0}
+while getopts vWh opt; do
+    case $opt in
+        v) verbose=1 ;;
+        W) fail_on_warning=1 ;;
+        h) usage 0 ;;
+        *) usage 64 ;;
+    esac
+done
+shift $((OPTIND-1))
+
+if (( verbose )); then
     set -x
 fi
 
@@ -90,6 +113,7 @@ export XDG_CONFIG_HOME="$build_dir"
 cleanup() {
     for p in $awesome_pid $xserver_pid; do
         kill -TERM "$p" 2>/dev/null || true
+        wait "$p"
     done
     rm -rf "$tmp_files" || true
 }
@@ -100,9 +124,7 @@ awesome_log=$tmp_files/_awesome_test.log
 echo "awesome_log: $awesome_log"
 
 wait_until_success() {
-    if [ "$VERBOSE" = 1 ]; then
-        set +x
-    fi
+    if (( verbose )); then set +x; fi
     wait_count=60  # 60*0.05s => 3s.
     while true; do
         set +e
@@ -125,9 +147,7 @@ wait_until_success() {
         fi
         sleep 0.05
     done
-    if [ "$VERBOSE" = 1 ]; then
-        set -x
-    fi
+    if (( verbose )); then set -x; fi
 }
 
 # Wait for DISPLAY to be available, and setup xrdb,
@@ -161,9 +181,9 @@ wait_until_success "setup xrdb" "printf 'Xft.dpi: 96
 # Use a separate D-Bus session; sets $DBUS_SESSION_BUS_PID.
 eval "$(DISPLAY="$D" dbus-launch --sh-syntax --exit-with-session)"
 
-RC_FILE=${source_dir}/awesomerc.lua
-export AWESOME_THEMES_PATH="$source_dir/themes"
-export AWESOME_ICON_PATH="$source_dir/icons"
+RC_FILE=${AWESOME_RC_FILE:-${source_dir}/awesomerc.lua}
+AWESOME_THEMES_PATH="${AWESOME_THEMES_PATH:-${source_dir}/themes}"
+AWESOME_ICON_PATH="${AWESOME_ICON_PATH:-${source_dir}/icons}"
 
 # Inject coverage runner via temporary RC file.
 if [ -n "$DO_COVERAGE" ] && [ "$DO_COVERAGE" != 0 ]; then
@@ -181,7 +201,10 @@ start_awesome() {
     cd "$build_dir"
     # Kill awesome after $timeout_stale seconds (e.g. for errors during test setup).
     # SOURCE_DIRECTORY is used by .luacov.
-    DISPLAY="$D" SOURCE_DIRECTORY="$source_dir" timeout "$timeout_stale" "$AWESOME" -c "$RC_FILE" "${awesome_options[@]}" > "$awesome_log" 2>&1 &
+    DISPLAY="$D" SOURCE_DIRECTORY="$source_dir" \
+        AWESOME_THEMES_PATH="$AWESOME_THEMES_PATH" \
+        AWESOME_ICON_PATH="$AWESOME_ICON_PATH" \
+        timeout "$timeout_stale" "$AWESOME" -c "$RC_FILE" "${awesome_options[@]}" > "$awesome_log" 2>&1 &
     awesome_pid=$!
     cd - >/dev/null
 
@@ -238,9 +261,15 @@ for f in $tests; do
     esac
 
     # Parse any error from the log.
-    error="$(grep --color -o --binary-files=text -E \
-        '.*[Ee]rror.*|.*assertion failed.*|^Step .* failed:' "$awesome_log" ||
-        true)"
+    pattern='.*[Ee]rror.*|.*assertion failed.*|^Step .* failed:'
+    if [[ $fail_on_warning ]]; then
+        pattern+='|^.{19} W: awesome:.*'
+    fi
+    error="$(grep --color -o --binary-files=text -E "$pattern" "$awesome_log" || true)"
+    if [[ $fail_on_warning ]]; then
+        # Filter out ignored warnings.
+        error="$(echo "$error" | grep -vE '.{19} W: awesome: (a_glib_poll|Cannot reliably detect EOF)' || true)"
+    fi
     if [[ -n "$error" ]]; then
         color_red
         echo "===> ERROR running $f <==="
