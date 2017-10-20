@@ -171,8 +171,9 @@ end
 -- @treturn number,number,number,number Geometry of the calendar, list of x, y, width, height
 local function get_geometry(widget, screen, position)
     local pos, s = position or "cc", screen or ascreen.focused()
+    local margin = widget._calendar_margin or 0
     local wa = s.workarea
-    local width, height = widget:fit({screen=s, dpi=beautiful.xresources.get_dpi(s)}, wa.width, wa.height)
+    local width, height = widget:fit({screen=s, dpi=s.dpi}, wa.width, wa.height)
 
     width  = width  < wa.width  and width  or wa.width
     height = height < wa.height and height or wa.height
@@ -183,16 +184,16 @@ local function get_geometry(widget, screen, position)
     --                        bl, bc, br
     local x,y
     if pos:sub(1,1) == "t" then
-        y = wa.y
+        y = wa.y + margin
     elseif pos:sub(1,1) == "b" then
-        y = wa.y + wa.height - height
+        y = wa.y + wa.height - (height + margin)
     else  --if pos:sub(1,1) == "c" then
         y = wa.y + math.floor((wa.height - height) / 2)
     end
     if pos:sub(2,2) == "l" then
-        x = wa.x
+        x = wa.x + margin
     elseif pos:sub(2,2) == "r" then
-        x = wa.x + wa.width - width
+        x = wa.x + wa.width - (width + margin)
     else  --if pos:sub(2,2) == "c" then
         x = wa.x + math.floor((wa.width - width) / 2)
     end
@@ -215,9 +216,9 @@ function calendar_popup:call_calendar(offset, position, screen)
     local raw_date = os.date("*t")
     local date = {day=raw_date.day, month=raw_date.month, year=raw_date.year}
     if widget._private.type == "month" and self.offset ~= 0 then
-        raw_date.month = raw_date.month + self.offset
-        raw_date = os.date("*t", os.time(raw_date))
-        date = {month=raw_date.month, year=raw_date.year}
+        local month_offset = (raw_date.month + self.offset - 1) % 12 + 1
+        local year_offset = raw_date.year + math.floor((raw_date.month + self.offset - 1) / 12)
+        date = {month=month_offset, year=year_offset }
     elseif widget._private.type == "year" then
         date = {year=raw_date.year + self.offset}
     end
@@ -246,17 +247,37 @@ end
 --
 -- @param widget Widget to attach the calendar
 -- @tparam[opt="tr"] string position Two characters string defining the position on the screen
+-- @tparam[opt={}] table args Additional options
+-- @tparam[opt=true] bool args.on_hover Show popup during mouse hover
 -- @treturn wibox The wibox calendar
-function calendar_popup:attach(widget, position)
+function calendar_popup:attach(widget, position, args)
     position = position or "tr"
+    args = args or {}
+    if args.on_hover == nil then args.on_hover=true end
     widget:buttons(gears.table.join(
         abutton({ }, 1, function ()
-                              self:call_calendar(0, position)
-                              self.visible = not self.visible
+                              if not self.visible or self._calendar_clicked_on then
+                                  self:call_calendar(0, position)
+                                  self.visible = not self.visible
+                              end
+                              self._calendar_clicked_on = self.visible
                         end),
         abutton({ }, 4, function () self:call_calendar(-1) end),
         abutton({ }, 5, function () self:call_calendar( 1) end)
     ))
+    if args.on_hover then
+        widget:connect_signal("mouse::enter", function ()
+            if not self._calendar_clicked_on then
+                self:call_calendar(0, position)
+                self.visible = true
+            end
+        end)
+        widget:connect_signal("mouse::leave", function ()
+            if not self._calendar_clicked_on then
+                self.visible = false
+            end
+        end)
+    end
     return self
 end
 
@@ -272,6 +293,7 @@ end
 -- @tparam string args.bg Wibox background color
 -- @tparam string args.font Calendar font
 -- @tparam number args.spacing Calendar spacing
+-- @tparam number args.margin Margin around calendar widget
 -- @tparam boolean args.week_numbers Show weeknumbers
 -- @tparam boolean args.start_sunday Start week on Sunday
 -- @tparam boolean args.long_weekdays Format the weekdays with three characters instead of two
@@ -304,13 +326,20 @@ local function get_cal_wibox(caltype, args)
         start_sunday  = args.start_sunday,
         long_weekdays = args.long_weekdays,
         fn_embed      = embed(parse_all_options(args)),
+        _calendar_margin = args.margin,
         widget = caltype == "year" and wibox.widget.calendar.year or wibox.widget.calendar.month
     }
     ret:set_widget(widget)
 
     ret:buttons(gears.table.join(
-            abutton({ }, 1, function () ret.visible=false end),
-            abutton({ }, 3, function () ret.visible=false end),
+            abutton({ }, 1, function ()
+                ret.visible=false
+                ret._calendar_clicked_on=false
+            end),
+            abutton({ }, 3, function ()
+                ret.visible=false
+                ret._calendar_clicked_on=false
+            end),
             abutton({ }, 4, function () ret:call_calendar(-1) end),
             abutton({ }, 5, function () ret:call_calendar( 1) end)
     ))
@@ -335,6 +364,7 @@ end
 -- @tparam string args.bg Wibox background color
 -- @tparam string args.font Calendar font
 -- @tparam number args.spacing Calendar spacing
+-- @tparam number args.margin Margin around calendar widget
 -- @tparam boolean args.week_numbers Show weeknumbers
 -- @tparam boolean args.start_sunday Start week on Sunday
 -- @tparam boolean args.long_weekdays Format the weekdays with three characters instead of two
@@ -368,6 +398,7 @@ end
 -- @tparam string args.bg Wibox background color
 -- @tparam string args.font Calendar font
 -- @tparam number args.spacing Calendar spacing
+-- @tparam number args.margin Margin around calendar widget
 -- @tparam boolean args.week_numbers Show weeknumbers
 -- @tparam boolean args.start_sunday Start week on Sunday
 -- @tparam boolean args.long_weekdays Format the weekdays with three characters instead of two

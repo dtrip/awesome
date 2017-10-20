@@ -1,3 +1,7 @@
+-- If LuaRocks is installed, make sure that packages installed through it are
+-- found (e.g. lgi). If LuaRocks is not installed, do nothing.
+pcall(require, "luarocks.loader")
+
 -- @DOC_REQUIRE_SECTION@
 -- Standard awesome library
 local gears = require("gears")
@@ -478,15 +482,16 @@ awful.rules.rules = {
         instance = {
           "DTA",  -- Firefox addon DownThemAll.
           "copyq",  -- Includes session name in class.
+          "pinentry",
         },
         class = {
           "Arandr",
+          "Blueman-manager",
           "Gpick",
           "Kruler",
           "MessageWin",  -- kalarm.
           "Sxiv",
           "Wpa_gui",
-          "pinentry",
           "veromix",
           "xtightvncviewer"},
 
@@ -495,6 +500,7 @@ awful.rules.rules = {
         },
         role = {
           "AlarmWindow",  -- Thunderbird's calendar.
+          "ConfigManager",  -- Thunderbird's about:config.
           "pop-up",       -- e.g. Google Chrome's (detached) Developer Tools.
         }
       }, properties = { floating = true }},

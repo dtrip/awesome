@@ -268,7 +268,6 @@ endif()
 
 # {{{ Lua API Documentation
 if(GENERATE_DOC)
-
     if(NOT BUILD_DIR STREQUAL SOURCE_DIR)
         file(MAKE_DIRECTORY ${BUILD_DIR}/lib)
         file(MAKE_DIRECTORY ${BUILD_DIR}/doc)
@@ -291,24 +290,18 @@ if(GENERATE_DOC)
 
     add_custom_target(ldoc ALL
         DEPENDS ${BUILD_DIR}/doc/index.html)
+    if (STRICT_TESTS)
+        set(ldoc_args --fatalwarnings .)
+        set(ldoc_desc_suffix " (fatal warnings)")
+    else()
+        set(ldoc_args .)
+    endif()
     add_custom_command(
-        COMMAND ${LDOC_EXECUTABLE} .
         OUTPUT  ${BUILD_DIR}/doc/index.html
+        COMMAND ${LDOC_EXECUTABLE} ${ldoc_args}
         WORKING_DIRECTORY ${AWE_DOC_DIR}
-        DEPENDS ${AWE_LUA_FILES} ${AWE_MD_FILES} ${BUILD_DIR}/docs/config.ld
-        COMMENT "Generating API documentation"
-        VERBATIM)
-
-    # Run ldoc and make it fail if any warnings are generated. The
-    # redirection-magic swaps stdout and stderr and awk exits with a non-zero
-    # status if it sees at least one line of input.
-    # All together, this fails as soon as ldoc prints on stderr.
-    add_custom_target(check-ldoc-warnings
-        COMMAND ${LDOC_EXECUTABLE} . 3>&1 1>&2 2>&3 | awk "{ fail=1 \; print } END { exit fail }"
-        WORKING_DIRECTORY ${AWE_DOC_DIR}
-        DEPENDS ${AWE_LUA_FILES} ${AWE_MD_FILES}
-    )
-    list(APPEND CHECK_QA_TARGETS check-ldoc-warnings)
+        DEPENDS ${AWE_SRCS} ${AWE_LUA_FILES} ${AWE_MD_FILES} ${BUILD_DIR}/docs/config.ld
+        COMMENT "Generating API documentation${ldoc_desc_suffix}")
 endif()
 # }}}
 
@@ -401,12 +394,11 @@ add_custom_target(check-integration
     USES_TERMINAL)
 add_dependencies(check-integration test-gravity)
 add_custom_target(check-themes
-    ${CMAKE_SOURCE_DIR}/tests/themes/run.sh
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    ${CMAKE_COMMAND} -E env CMAKE_BINARY_DIR='${CMAKE_BINARY_DIR}' ./tests/themes/run.sh
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Testing themes"
     USES_TERMINAL
-    DEPENDS generated_icons generate_awesomerc ${PROJECT_AWE_NAME}
-    VERBATIM)
+    DEPENDS generated_icons generate_awesomerc ${PROJECT_AWE_NAME})
 list(APPEND CHECK_TARGETS check-themes)
 
 add_custom_target(check-requires
