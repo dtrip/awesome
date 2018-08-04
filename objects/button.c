@@ -60,7 +60,7 @@
 
 /** When bound mouse button + modifiers are pressed.
  * @param ... One or more arguments are possible
- * @signal .press
+ * @signal press
  */
 
 /** When property changes.
@@ -73,7 +73,7 @@
 
 /** When bound mouse button + modifiers are pressed.
  * @param ... One or more arguments are possible
- * @signal .release
+ * @signal release
  */
 
 /** Create a new mouse button bindings.
@@ -178,5 +178,7 @@ button_class_setup(lua_State *L)
                             (lua_class_propfunc_t) luaA_button_get_modifiers,
                             (lua_class_propfunc_t) luaA_button_set_modifiers);
 }
+
+/* @DOC_cobject_COMMON@ */
 
 // vim: filetype=c:expandtab:shiftwidth=4:tabstop=8:softtabstop=4:textwidth=80

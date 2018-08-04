@@ -15,6 +15,7 @@ local aclient = require("awful.client")
 local aplace = require("awful.placement")
 local asuit = require("awful.layout.suit")
 local beautiful = require("beautiful")
+local alayout = require("awful.layout")
 
 local ewmh = {
     generic_activate_filters    = {},
@@ -28,6 +29,10 @@ local ewmh = {
 --- Hide the border on fullscreen clients.
 -- @beautiful beautiful.fullscreen_hide_border
 -- @tparam[opt=true] boolean fullscreen_hide_border
+
+--- Hide the border on maximized clients.
+-- @beautiful beautiful.maximized_hide_border
+-- @tparam[opt=false] boolean maximized_hide_border
 
 --- The list of all registered generic request::activate (focus stealing)
 -- filters. If a filter is added to only one context, it will be in
@@ -81,7 +86,13 @@ end
 function ewmh.activate(c, context, hints) -- luacheck: no unused args
     hints = hints or  {}
 
-    if c.focusable == false and not hints.force then return end
+    if c.focusable == false and not hints.force then
+        if hints.raise then
+            c:raise()
+        end
+
+        return
+    end
 
     local found, ret = false
 
@@ -96,6 +107,12 @@ function ewmh.activate(c, context, hints) -- luacheck: no unused args
         end
 
         if found then break end
+    end
+
+    -- Minimized clients can be requested to have focus by, for example, 3rd
+    -- party toolbars and they might not try to unminimize it first.
+    if ret ~= false and hints.raise then
+        c.minimized = false
     end
 
     if ret ~= false and c:isvisible() then
@@ -291,7 +308,8 @@ function ewmh.geometry(c, context, hints)
             props.honor_padding = beautiful.maximized_honor_padding ~= false
         end
 
-        if original_context == "fullscreen" and beautiful.fullscreen_hide_border ~= false then
+        if (original_context == "fullscreen" and beautiful.fullscreen_hide_border ~= false) or
+           (original_context == "maximized" and beautiful.maximized_hide_border == true) then
             props.ignore_border_width = true
             props.zap_border_width = true
         end
@@ -388,6 +406,15 @@ function ewmh.client_geometry_requests(c, context, hints)
     end
 end
 
+-- The magnifier layout doesn't work with focus follow mouse.
+ewmh.add_activate_filter(function(c)
+    if alayout.get(c.screen) ~= alayout.suit.magnifier
+      and aclient.focus.filter(c) then
+        return nil
+    else
+        return false
+    end
+end, "mouse_enter")
 
 client.connect_signal("request::activate", ewmh.activate)
 client.connect_signal("request::tag", ewmh.tag)

@@ -112,21 +112,21 @@
  */
 
 /** When a client gains focus.
- * @signal .focus
+ * @signal focus
  */
 
 /** Before manage, after unmanage, and when clients swap.
- * @signal .list
+ * @signal list
  */
 
 /** When 2 clients are swapped
  * @tparam client client The other client
  * @tparam boolean is_source If self is the source or the destination of the swap
- * @signal .swapped
+ * @signal swapped
  */
 
 /** When a new client appears and gets managed by Awesome.
- * @signal .manage
+ * @signal manage
  */
 
 /**
@@ -207,29 +207,29 @@
  */
 
 /** When a client gets tagged.
- * @signal .tagged
+ * @signal tagged
  * @tag t The tag object.
  */
 
 /** When a client gets unfocused.
- * @signal .unfocus
+ * @signal unfocus
  */
 
 /**
- * @signal .unmanage
+ * @signal unmanage
  */
 
 /** When a client gets untagged.
- * @signal .untagged
+ * @signal untagged
  * @tag t The tag object.
  */
 
 /**
- * @signal .raised
+ * @signal raised
  */
 
 /**
- * @signal .lowered
+ * @signal lowered
  */
 
 /**
@@ -371,7 +371,26 @@
  */
 
 /**
- * The client icon.
+ * The client icon as a surface.
+ *
+ * This property holds the client icon closest to the size configured via
+ * @{awesome.set_preferred_icon_size}.
+ *
+ * It is not a path or an "real" file. Rather, it is already a bitmap surface.
+ *
+ * Typically you would want to use @{awful.widget.clienticon} to get this as a
+ * widget.
+ *
+ * Working with icons is tricky because their surfaces do not use reference
+ * counting correctly. If `gears.surface(c.icon)` is called multiple time on
+ * the same icon, it will cause a double-free error and Awesome will crash. To
+ * get a copy of the icon, you can use:
+ *
+ *     local s = gears.surface(c.icon)
+ *     local img = cairo.ImageSurface.create(cairo.Format.ARGB32, s:get_width(), s:get_height())
+ *     local cr  = cairo.Context(img)
+ *     cr:set_source_surface(s, 0, 0)
+ *     cr:paint()
  *
  * **Signal:**
  *
@@ -379,6 +398,7 @@
  *
  * @property icon
  * @param surface
+ * @usage local ib = wibox.widget.imagebox(c.icon)
  */
 
 /**
@@ -723,12 +743,59 @@
  * identifier remain the same. This allow to match a spawn event to an actual
  * client.
  *
+ * This is used to display a different mouse cursor when the application is
+ * loading and also to attach some properties to the newly created client (like
+ * a `tag` or `floating` state).
+ *
+ * Some applications, like `xterm`, don't support startup notification. While
+ * not perfect, the addition the following code to `rc.lua` will mitigate the
+ * issue. Please note that this code is Linux specific.
+ *
+ *    local blacklisted_snid = setmetatable({}, {__mode = "v" })
+ *
+ *    --- Make startup notification work for some clients like XTerm. This is ugly
+ *    -- but works often enough to be useful.
+ *    local function fix_startup_id(c)
+ *        -- Prevent "broken" sub processes created by `c` to inherit its SNID
+ *        if c.startup_id then
+ *            blacklisted_snid[c.startup_id] = blacklisted_snid[c.startup_id] or c
+ *            return
+ *        end
+ *
+ *        if not c.pid then return end
+ *
+ *        -- Read the process environment variables
+ *        local f = io.open("/proc/"..c.pid.."/environ", "rb")
+ *
+ *        -- It will only work on Linux, that's already 99% of the userbase.
+ *        if not f then return end
+ *
+ *        local value = _VERSION <= "Lua 5.1" and "([^\z]*)\0" or "([^\0]*)\0"
+ *        local snid = f:read("*all"):match("STARTUP_ID=" .. value)
+ *        f:close()
+ *
+ *        -- If there is already a client using this SNID, it means it's either a
+ *        -- subprocess or another window for the same process. While it makes sense
+ *        -- in some case to apply the same rules, it is not always the case, so
+ *        -- better doing nothing rather than something stupid.
+ *        if blacklisted_snid[snid] then return end
+ *
+ *        c.startup_id = snid
+ *
+ *        blacklisted_snid[snid] = c
+ *    end
+ *
+ *    awful.rules.add_rule_source(
+ *        "snid", fix_startup_id, {}, {"awful.spawn", "awful.rules"}
+ *    )
+ *
  * **Signal:**
  *
  *  * *property::startup\_id*
  *
  * @property startup_id
  * @param string
+ * @see awful.spawn
  */
 
 /**
@@ -906,6 +973,7 @@ DO_CLIENT_SET_STRING_PROPERTY(name)
 DO_CLIENT_SET_STRING_PROPERTY2(alt_name, name)
 DO_CLIENT_SET_STRING_PROPERTY(icon_name)
 DO_CLIENT_SET_STRING_PROPERTY2(alt_icon_name, icon_name)
+DO_CLIENT_SET_STRING_PROPERTY(startup_id)
 DO_CLIENT_SET_STRING_PROPERTY(role)
 DO_CLIENT_SET_STRING_PROPERTY(machine)
 #undef DO_CLIENT_SET_STRING_PROPERTY
@@ -1379,6 +1447,7 @@ client_update_properties(lua_State *L, int cidx, client_t *c)
 void
 client_manage(xcb_window_t w, xcb_get_geometry_reply_t *wgeom, xcb_get_window_attributes_reply_t *wattr)
 {
+    xcb_void_cookie_t reparent_cookie;
     lua_State *L = globalconf_get_lua_State();
     const uint32_t select_input_val[] = { CLIENT_SELECT_INPUT_EVENT_MASK };
 
@@ -1436,7 +1505,7 @@ client_manage(xcb_window_t w, xcb_get_geometry_reply_t *wgeom, xcb_get_window_at
                                  globalconf.screen->root,
                                  XCB_CW_EVENT_MASK,
                                  no_event);
-    xcb_reparent_window(globalconf.connection, w, c->frame_window, 0, 0);
+    reparent_cookie = xcb_reparent_window_checked(globalconf.connection, w, c->frame_window, 0, 0);
     xcb_map_window(globalconf.connection, w);
     xcb_change_window_attributes(globalconf.connection,
                                  globalconf.screen->root,
@@ -1531,6 +1600,16 @@ client_manage(xcb_window_t w, xcb_get_geometry_reply_t *wgeom, xcb_get_window_at
 
     /* client is still on top of the stack; emit signal */
     luaA_object_emit_signal(L, -1, "manage", 0);
+
+    xcb_generic_error_t *error = xcb_request_check(globalconf.connection, reparent_cookie);
+    if (error != NULL) {
+        warn("Failed to manage window with name '%s', class '%s', instance '%s', because reparenting failed.",
+                NONULL(c->name), NONULL(c->class), NONULL(c->instance));
+        event_handle((xcb_generic_event_t *) error);
+        p_delete(&error);
+        client_unmanage(c, true);
+    }
+
     /* pop client */
     lua_pop(L, 1);
 }
@@ -2538,10 +2617,8 @@ luaA_client_tags(lua_State *L)
 /** Get the first tag of a client.
  */
 static int
-luaA_client_get_first_tag(lua_State *L)
+luaA_client_get_first_tag(lua_State *L, client_t *c)
 {
-    client_t *c = luaA_checkudata(L, 1, &client_class);
-
     foreach(tag, globalconf.tags)
         if(is_client_tagged(c, *tag))
         {
@@ -3046,6 +3123,14 @@ luaA_client_get_icon_name(lua_State *L, client_t *c)
     return 1;
 }
 
+static int
+luaA_client_set_startup_id(lua_State *L, client_t *c)
+{
+    const char *startup_id = luaL_checkstring(L, -1);
+    client_set_startup_id(L, 1, a_strdup(startup_id));
+    return 0;
+}
+
 LUA_OBJECT_EXPORT_OPTIONAL_PROPERTY(client, client_t, screen, luaA_object_push, NULL)
 LUA_OBJECT_EXPORT_PROPERTY(client, client_t, class, lua_pushstring)
 LUA_OBJECT_EXPORT_PROPERTY(client, client_t, instance, lua_pushstring)
@@ -3430,10 +3515,9 @@ luaA_client_keys(lua_State *L)
 }
 
 static int
-luaA_client_get_icon_sizes(lua_State *L)
+luaA_client_get_icon_sizes(lua_State *L, client_t *c)
 {
     int index = 1;
-    client_t *c = luaA_checkudata(L, 1, &client_class);
 
     lua_newtable(L);
     foreach (s, c->icons) {
@@ -3706,9 +3790,9 @@ client_class_setup(lua_State *L)
                             (lua_class_propfunc_t) luaA_client_get_shape_input,
                             (lua_class_propfunc_t) luaA_client_set_shape_input);
     luaA_class_add_property(&client_class, "startup_id",
-                            NULL,
+                            (lua_class_propfunc_t) luaA_client_set_startup_id,
                             (lua_class_propfunc_t) luaA_client_get_startup_id,
-                            NULL);
+                            (lua_class_propfunc_t) luaA_client_set_startup_id);
     luaA_class_add_property(&client_class, "client_shape_bounding",
                             NULL,
                             (lua_class_propfunc_t) luaA_client_get_client_shape_bounding,
@@ -3722,5 +3806,7 @@ client_class_setup(lua_State *L)
                             (lua_class_propfunc_t) luaA_client_get_first_tag,
                             NULL);
 }
+
+/* @DOC_cobject_COMMON@ */
 
 // vim: filetype=c:expandtab:shiftwidth=4:tabstop=8:softtabstop=4:textwidth=80

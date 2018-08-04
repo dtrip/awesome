@@ -71,7 +71,7 @@ file(MAKE_DIRECTORY "${IMAGE_DIR}")
 #  * add "--" in front of each lines
 #  * add a custom prefix in front of each lines
 #  * drop empty lines
-#  * convert " " lines into empty lines
+#  * convert --DOC_NEWLINE lines into empty lines
 #  * drop lines ending with "--DOC_SOMETHING", they are handled elsewhere
 function(escape_string variable content escaped_content line_prefix)
     # If DOC_HIDE_ALL is present, do nothing.
@@ -82,6 +82,10 @@ function(escape_string variable content escaped_content line_prefix)
 
     set(tmp_output ${content})
     foreach (LINE ${var_lines})
+
+        # ;; will drop the line, but " ;" will create an empty line
+        string(REGEX REPLACE "--DOC_NEWLINE" " " LINE "${LINE}")
+
         if(NOT LINE MATCHES "^.*--DOC_[A-Z]+")
             set(tmp_output ${tmp_output}\n${DOC_LINE_PREFIX}${line_prefix}${LINE})
         endif()
@@ -171,9 +175,11 @@ function(run_test test_path namespace escaped_content)
 
     file(READ ${test_path} tmp_content)
 
-    # Add "--" in front of each line. This is required for method doc, but not
-    # for documentation pages
-    if(NOT tmp_content MATCHES "--DOC_NO_DASH")
+    # Add "--" or " * " in front of each line. This is required for method doc,
+    #but not for documentation pages
+    if(tmp_content MATCHES "--DOC_ASTERISK")
+        set(DOC_LINE_PREFIX " * ")
+    elseif(NOT tmp_content MATCHES "--DOC_NO_DASH")
         set(DOC_LINE_PREFIX "--")
     endif()
 
@@ -182,23 +188,29 @@ function(run_test test_path namespace escaped_content)
         set(DOC_BLOCK_PREFIX "@usage")
     endif()
 
+    # Does the text generate text output?
+    if(tmp_content MATCHES "--DOC_GEN_OUTPUT")
+        # The expected output is next to the .lua file in a .output.txt file
+        string(REPLACE ".lua" ".output.txt" expected_output_path ${test_path})
+    else()
+        set(expected_output_path "/dev/null")
+    endif()
+
     # Get the file name without the extension.
     get_filename_component(${test_path} TEST_FILE_NAME NAME)
     set(IMAGE_PATH "${IMAGE_DIR}/AUTOGEN${namespace}_${TEST_FILE_NAME}")
 
-    # Execute the script, leave the image extension decision to the test.
-    # SVG is preferred, but PNG is better suited for some tests, like bitmap
-    # patterns.
+    # Execute the script.
     file(RELATIVE_PATH rel_test_path "${TOP_SOURCE_DIR}" "${test_path}")
     message(STATUS "Running ${rel_test_path}…")
 
     execute_process(
-        COMMAND ${LUA_COV_RUNNER} ${template} ${test_path} ${IMAGE_PATH}
+        COMMAND "${TOP_SOURCE_DIR}/tests/examples/runner.sh" "${expected_output_path}" ${LUA_COV_RUNNER} ${template} ${test_path} ${IMAGE_PATH}
         RESULT_VARIABLE TEST_RESULT
         OUTPUT_VARIABLE TEST_OUTPUT
         ERROR_VARIABLE  TEST_ERROR
     )
-    if (TEST_RESULT OR NOT TEST_ERROR STREQUAL "")
+    if (TEST_RESULT OR NOT TEST_OUTPUT STREQUAL "" OR NOT TEST_ERROR STREQUAL "")
         message("Result: ${TEST_RESULT}")
         if (NOT TEST_OUTPUT STREQUAL "")
             message("Output: ${TEST_OUTPUT}")
@@ -217,33 +229,30 @@ function(run_test test_path namespace escaped_content)
     # Build the documentation.
     set(TEST_DOC_CONTENT "${TEST_PRE_HEADER}")
 
-    # If the image has been created, then add it.
-    if(EXISTS "${IMAGE_PATH}.svg")
+    # Does the test generate an output image?
+    if(tmp_content MATCHES "--DOC_GEN_IMAGE")
         set(OUTPUT_IMAGE_PATH "${IMAGE_PATH}.svg")
         escape_string(
             "![Usage example](../images/AUTOGEN${namespace}_${TEST_FILE_NAME}.svg)\n"
-            "${TEST_DOC_CONTENT}" TEST_DOC_CONTENT ""
-        )
-    elseif(EXISTS "${IMAGE_PATH}.png")
-        set(OUTPUT_IMAGE_PATH "${IMAGE_PATH}.png")
-        escape_string(
-            "![Usage example](../images/AUTOGEN${namespace}_${TEST_FILE_NAME}.png)\n"
             "${TEST_DOC_CONTENT}" TEST_DOC_CONTENT ""
         )
     else()
         set(OUTPUT_IMAGE_PATH "")
     endif()
 
+    # Does the text generate text output?
     # If there is an output, assume it is relevant and add it to the
     # documentation under the image.
-    if(NOT ${TEST_OUTPUT} STREQUAL "")
+    if(tmp_content MATCHES "--DOC_GEN_OUTPUT")
+        file(READ "${expected_output_path}" expected_output)
+
         set(TEST_DOC_CONTENT
             "${TEST_DOC_CONTENT}\n${DOC_LINE_PREFIX}\n${DOC_LINE_PREFIX}**Usage example output**:\n${DOC_LINE_PREFIX}"
         )
 
         # Markdown requires an empty line before and after, and 4 spaces.
         escape_string(
-            "\n${TEST_OUTPUT}"
+            "\n${expected_output}"
             "${TEST_DOC_CONTENT}" TEST_DOC_CONTENT "    "
         )
         set(TEST_DOC_CONTENT "${TEST_DOC_CONTENT}\n${DOC_LINE_PREFIX}")
@@ -279,7 +288,7 @@ function(run_test test_path namespace escaped_content)
 endfunction()
 
 # Find all test files, and run them (generating custom commands for updating them).
-file(GLOB_RECURSE test_files LIST_DIRECTORIES false
+file(GLOB_RECURSE test_files FOLLOW_SYMLINKS LIST_DIRECTORIES false
     "${TOP_SOURCE_DIR}/tests/examples/*.lua")
 
 # Find and run all test files.

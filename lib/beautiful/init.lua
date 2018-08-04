@@ -22,10 +22,12 @@ local protected_call = require("gears.protected_call")
 
 local xresources = require("beautiful.xresources")
 local theme_assets = require("beautiful.theme_assets")
+local gtk = require("beautiful.gtk")
 
 local beautiful = {
     xresources = xresources,
     theme_assets = theme_assets,
+    gtk = gtk,
     mt = {}
 }
 
@@ -73,15 +75,15 @@ local active_font
 --- The client border width.
 -- @beautiful beautiful.border_width
 
---- The default clients border width.
+--- The default clients border color.
 -- Note that only solid colors are supported.
 -- @beautiful beautiful.border_normal
 
---- The focused client border width.
+--- The focused client border color.
 -- Note that only solid colors are supported.
 -- @beautiful beautiful.border_focus
 
---- The marked clients border width.
+--- The marked clients border color.
 -- Note that only solid colors are supported.
 -- @beautiful beautiful.border_marked
 

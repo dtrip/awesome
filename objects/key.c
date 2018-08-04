@@ -56,7 +56,7 @@
  */
 
 /**
- * @signal .press
+ * @signal press
  */
 
 /**
@@ -68,7 +68,7 @@
  */
 
 /**
- * @signal .release
+ * @signal release
  */
 
 /** Get the number of instances.
@@ -373,5 +373,7 @@ key_class_setup(lua_State *L)
                             (lua_class_propfunc_t) luaA_key_get_modifiers,
                             (lua_class_propfunc_t) luaA_key_set_modifiers);
 }
+
+/* @DOC_cobject_COMMON@ */
 
 // vim: filetype=c:expandtab:shiftwidth=4:tabstop=8:softtabstop=4:textwidth=80

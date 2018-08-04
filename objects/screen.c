@@ -71,12 +71,12 @@
  */
 
 /**
- * @signal .primary_changed
+ * @signal primary_changed
  */
 
 /**
  * This signal is emitted when a new screen is added to the current setup.
- * @signal .added
+ * @signal added
  */
 
 /**
@@ -85,13 +85,13 @@
  */
 
 /** This signal is emitted when the list of available screens changes.
- * @signal .list
+ * @signal list
  */
 
 /** When 2 screens are swapped
  * @tparam screen screen The other screen
  * @tparam boolean is_source If self is the source or the destination of the swap
- * @signal .swapped
+ * @signal swapped
  */
 
  /**
@@ -117,14 +117,34 @@
  */
 
 /**
- * The screen number.
+ * The internal screen number.
  *
- * An integer greater than 1 and smaller than `screen.count()`. Please note that
- * the screen order isn't always mirroring the screen logical position.
+ * * The indeces are a continuous sequence from 1 to `screen.count()`.
+ * * It is **NOT** related to the actual screen position relative to each
+ *   other.
+ * * 1 is **NOT** necessarily the primary screen.
+ * * When screens are added and removed indices **CAN** change.
+ *
+ * If you really want to keep an array of screens you should use something
+ * along:
+ *
+ *     local myscreens = setmetatable({}. {__mode="k"})
+ *     myscreens[ screen[1] ] = "mydata"
+ *
+ * But it might be a better option to simply store the data directly in the
+ * screen object as:
+ *
+ *     screen[1].mydata = "mydata"
+ *
+ * Remember that screens are also objects, so if you only want to store a simple
+ * property, you can do it directly:
+ *
+ *     screen[1].answer = 42
  *
  * **Immutable:** true
  * @property index
  * @param integer
+ * @see screen
  */
 
 /**
@@ -229,8 +249,11 @@ luaA_checkscreen(lua_State *L, int sidx)
     {
         int screen = lua_tointeger(L, sidx);
         if(screen < 1 || screen > globalconf.screens.len)
-            luaL_error(L, "invalid screen number: %d (of %d existing)",
-                    screen, globalconf.screens.len);
+        {
+            luaA_warn(L, "invalid screen number: %d (of %d existing)", screen, globalconf.screens.len);
+            lua_pushnil(L);
+            return NULL;
+        }
         return globalconf.screens.tab[screen - 1];
     } else
         return luaA_checkudata(L, sidx, &screen_class);
@@ -658,6 +681,10 @@ screen_refresh(void)
 
     screen_deduplicate(L, &new_screens);
 
+    /* Running without any screens at all is no fun. */
+    if (new_screens.len == 0)
+        screen_scan_x11(L, &new_screens);
+
     /* Add new screens */
     foreach(new_screen, new_screens) {
         bool found = false;
@@ -1040,7 +1067,9 @@ luaA_screen_module_index(lua_State *L)
             foreach(output, (*screen)->outputs)
                 if(A_STREQ(output->name, name))
                     return luaA_object_push(L, *screen);
-        luaL_error(L, "Unknown screen output name: %s", name);
+        luaA_warn(L, "Unknown screen output name: %s", name);
+        lua_pushnil(L);
+        return 1;
     }
 
     return luaA_object_push(L, luaA_checkscreen(L, 2));
@@ -1170,6 +1199,11 @@ luaA_screen_fake_remove(lua_State *L)
     if (idx < 0)
         /* WTF? */
         return 0;
+
+    if (globalconf.screens.len == 1) {
+        luaA_warn(L, "Removing last screen through fake_remove(). "
+                "This is a very, very, very bad idea!");
+    }
 
     screen_array_take(&globalconf.screens, idx);
     luaA_object_push(L, s);
@@ -1303,5 +1337,7 @@ screen_class_setup(lua_State *L)
                             (lua_class_propfunc_t) luaA_screen_get_workarea,
                             NULL);
 }
+
+/* @DOC_cobject_COMMON@ */
 
 // vim: filetype=c:expandtab:shiftwidth=4:tabstop=8:softtabstop=4:textwidth=80
