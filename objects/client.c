@@ -647,6 +647,43 @@
  */
 
 /**
+ * The motif WM hints of the client.
+ *
+ * This is nil if the client has no motif hints. Otherwise, this is a table that
+ * contains the present properties. Note that awesome provides these properties
+ * as-is and does not interpret them for you. For example, if the function table
+ * only has "resize" set to true, this means that the window requests to be only
+ * resizable, but asks for the other functions not to be able. If however both
+ * "resize" and "all" are set, this means that all but the resize function
+ * should be enabled.
+ *
+ * **Signal:**
+ *
+ *  * *property::motif\_wm\_hints*
+ *
+ * @property motif_wm_hints
+ * @param table
+ * @tfield[opt] table table.functions
+ * @tfield[opt] boolean table.functions.all
+ * @tfield[opt] boolean table.functions.resize
+ * @tfield[opt] boolean table.functions.move
+ * @tfield[opt] boolean table.functions.minimize
+ * @tfield[opt] boolean table.functions.maximize
+ * @tfield[opt] boolean table.functions.close
+ * @tfield[opt] table table.decorations
+ * @tfield[opt] boolean table.decorations.all
+ * @tfield[opt] boolean table.decorations.border
+ * @tfield[opt] boolean table.decorations.resizeh
+ * @tfield[opt] boolean table.decorations.title
+ * @tfield[opt] boolean table.decorations.menu
+ * @tfield[opt] boolean table.decorations.minimize
+ * @tfield[opt] boolean table.decorations.maximize
+ * @tfield[opt] string table.input_mode
+ * @tfield[opt] table table.status
+ * @tfield[opt] boolean table.status.tearoff_window
+ */
+
+/**
  * Set the client sticky, i.e. available on all tags.
  *
  * **Signal:**
@@ -979,11 +1016,24 @@ DO_CLIENT_SET_STRING_PROPERTY(machine)
 #undef DO_CLIENT_SET_STRING_PROPERTY
 
 void
+client_set_motif_wm_hints(lua_State *L, int cidx, motif_wm_hints_t hints)
+{
+    client_t *c = luaA_checkudata(L, cidx, &client_class);
+    if (memcmp(&c->motif_wm_hints, &hints, sizeof(c->motif_wm_hints)) == 0)
+        return;
+
+    memcpy(&c->motif_wm_hints, &hints, sizeof(c->motif_wm_hints));
+    luaA_object_emit_signal(L, cidx, "property::motif_wm_hints", 0);
+}
+
+void
 client_find_transient_for(client_t *c)
 {
     int counter;
     client_t *tc, *tmp;
+    lua_State *L = globalconf_get_lua_State();
 
+    /* This might return NULL, in which case we unset transient_for */
     tmp = tc = client_getbywin(c->transient_for_window);
 
     /* Verify that there are no loops in the transient_for relation after we are done */
@@ -994,14 +1044,16 @@ client_find_transient_for(client_t *c)
             counter = globalconf.stack.len+1;
         tmp = tmp->transient_for;
     }
-    if (counter <= globalconf.stack.len)
-    {
-        lua_State *L = globalconf_get_lua_State();
 
-        luaA_object_push(L, c);
-        client_set_transient_for(L, -1, tc);
-        lua_pop(L, 1);
+    if (counter > globalconf.stack.len)
+    {
+        /* There was a loop, so unset .transient_for */
+        tc = NULL;
     }
+
+    luaA_object_push(L, c);
+    client_set_transient_for(L, -1, tc);
+    lua_pop(L, 1);
 }
 
 void
@@ -1242,7 +1294,6 @@ client_focus_refresh(void)
 
     if(!globalconf.focus.need_update)
         return;
-    globalconf.focus.need_update = false;
 
     if(c && client_on_selected_tags(c))
     {
@@ -1265,6 +1316,9 @@ client_focus_refresh(void)
      */
     xcb_set_input_focus(globalconf.connection, XCB_INPUT_FOCUS_PARENT,
                         win, globalconf.timestamp);
+
+    /* Do this last, because client_unban() might set it to true */
+    globalconf.focus.need_update = false;
 }
 
 static void
@@ -1387,12 +1441,9 @@ border_width_callback(client_t *c, uint16_t old_width, uint16_t new_width)
     {
         area_t geometry = c->geometry;
         int16_t diff = new_width - old_width;
-        int16_t diff_x = 0, diff_y = 0;
         xwindow_translate_for_gravity(c->size_hints.win_gravity,
                                       diff, diff, diff, diff,
-                                      &diff_x, &diff_y);
-        geometry.x += diff_x;
-        geometry.y += diff_y;
+                                      &geometry.x, &geometry.y);
         /* inform client about changes */
         client_resize_do(c, geometry);
     }
@@ -1416,6 +1467,7 @@ client_update_properties(lua_State *L, int cidx, client_t *c)
     xcb_get_property_cookie_t net_wm_icon_name  = property_get_net_wm_icon_name(c);
     xcb_get_property_cookie_t wm_class          = property_get_wm_class(c);
     xcb_get_property_cookie_t wm_protocols      = property_get_wm_protocols(c);
+    xcb_get_property_cookie_t motif_wm_hints    = property_get_motif_wm_hints(c);
     xcb_get_property_cookie_t opacity           = xwindow_get_opacity_unchecked(c->window);
 
     /* update strut */
@@ -1436,6 +1488,7 @@ client_update_properties(lua_State *L, int cidx, client_t *c)
     property_update_net_wm_icon_name(c, net_wm_icon_name);
     property_update_wm_class(c, wm_class);
     property_update_wm_protocols(c, wm_protocols);
+    property_update_motif_wm_hints(c, motif_wm_hints);
     window_set_opacity(L, cidx, xwindow_get_opacity_from_cookie(opacity));
 }
 
@@ -2870,13 +2923,10 @@ titlebar_resize(lua_State *L, int cidx, client_t *c, client_titlebar_t bar, int 
 
     if(c->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)
     {
-        int16_t diff_x = 0, diff_y = 0;
         xwindow_translate_for_gravity(c->size_hints.win_gravity,
                                       diff_left, diff_top,
                                       diff_right, diff_bottom,
-                                      &diff_x, &diff_y);
-        geometry.x += diff_x;
-        geometry.y += diff_y;
+                                      &geometry.x, &geometry.y);
     }
 
     c->titlebar[bar].size = size;
@@ -3155,6 +3205,78 @@ LUA_OBJECT_EXPORT_PROPERTY(client, client_t, maximized_horizontal, lua_pushboole
 LUA_OBJECT_EXPORT_PROPERTY(client, client_t, maximized_vertical, lua_pushboolean)
 LUA_OBJECT_EXPORT_PROPERTY(client, client_t, maximized, lua_pushboolean)
 LUA_OBJECT_EXPORT_PROPERTY(client, client_t, startup_id, lua_pushstring)
+
+static int
+luaA_client_get_motif_wm_hints(lua_State *L, client_t *c)
+{
+    if (!(c->motif_wm_hints.hints & MWM_HINTS_AWESOME_SET))
+        return 0;
+
+    lua_newtable(L);
+
+#define HANDLE_BIT(field, flag, name) do { \
+        lua_pushboolean(L, c->motif_wm_hints.field & flag); \
+        lua_setfield(L, -2, name); \
+    } while (0)
+
+    if (c->motif_wm_hints.hints & MWM_HINTS_FUNCTIONS)
+    {
+        lua_newtable(L);
+        HANDLE_BIT(functions, MWM_FUNC_ALL, "all");
+        HANDLE_BIT(functions, MWM_FUNC_RESIZE, "resize");
+        HANDLE_BIT(functions, MWM_FUNC_MOVE, "move");
+        HANDLE_BIT(functions, MWM_FUNC_MINIMIZE, "minimize");
+        HANDLE_BIT(functions, MWM_FUNC_MAXIMIZE, "maximize");
+        HANDLE_BIT(functions, MWM_FUNC_CLOSE, "close");
+        lua_setfield(L, -2, "functions");
+    }
+
+    if (c->motif_wm_hints.hints & MWM_HINTS_DECORATIONS)
+    {
+        lua_newtable(L);
+        HANDLE_BIT(decorations, MWM_DECOR_ALL, "all");
+        HANDLE_BIT(decorations, MWM_DECOR_BORDER, "border");
+        HANDLE_BIT(decorations, MWM_DECOR_RESIZEH, "resizeh");
+        HANDLE_BIT(decorations, MWM_DECOR_TITLE, "title");
+        HANDLE_BIT(decorations, MWM_DECOR_MENU, "menu");
+        HANDLE_BIT(decorations, MWM_DECOR_MINIMIZE, "minimize");
+        HANDLE_BIT(decorations, MWM_DECOR_MAXIMIZE, "maximize");
+        lua_setfield(L, -2, "decorations");
+    }
+
+    if (c->motif_wm_hints.hints & MWM_HINTS_INPUT_MODE)
+    {
+        switch (c->motif_wm_hints.input_mode) {
+        case MWM_INPUT_MODELESS:
+            lua_pushliteral(L, "modeless");
+            break;
+        case MWM_INPUT_PRIMARY_APPLICATION_MODAL:
+            lua_pushliteral(L, "primary_application_modal");
+            break;
+        case MWM_INPUT_SYSTEM_MODAL:
+            lua_pushliteral(L, "system_modal");
+            break;
+        case MWM_INPUT_FULL_APPLICATION_MODAL:
+            lua_pushliteral(L, "full_application_modal");
+            break;
+        default:
+            lua_pushfstring(L, "unknown (%d)", (int) c->motif_wm_hints.input_mode);
+            break;
+        }
+        lua_setfield(L, -2, "input_mode");
+    }
+
+    if (c->motif_wm_hints.hints & MWM_HINTS_STATUS)
+    {
+        lua_newtable(L);
+        HANDLE_BIT(status, MWM_TEAROFF_WINDOW, "tearoff_window");
+        lua_setfield(L, -2, "status");
+    }
+
+#undef HANDLE_BIT
+
+    return 1;
+}
 
 static int
 luaA_client_get_content(lua_State *L, client_t *c)
@@ -3721,6 +3843,10 @@ client_class_setup(lua_State *L)
                             (lua_class_propfunc_t) luaA_client_set_modal,
                             (lua_class_propfunc_t) luaA_client_get_modal,
                             (lua_class_propfunc_t) luaA_client_set_modal);
+    luaA_class_add_property(&client_class, "motif_wm_hints",
+                            NULL,
+                            (lua_class_propfunc_t) luaA_client_get_motif_wm_hints,
+                            NULL);
     luaA_class_add_property(&client_class, "group_window",
                             NULL,
                             (lua_class_propfunc_t) luaA_client_get_group_window,
