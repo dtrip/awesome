@@ -23,7 +23,9 @@
 #include "awesome.h"
 #include "property.h"
 #include "objects/tag.h"
+#include "objects/selection_getter.h"
 #include "objects/drawin.h"
+#include "objects/selection_watcher.h"
 #include "xwindow.h"
 #include "ewmh.h"
 #include "objects/client.h"
@@ -43,6 +45,7 @@
 #include <xcb/xcb_icccm.h>
 #include <xcb/xcb_event.h>
 #include <xcb/xkb.h>
+#include <xcb/xfixes.h>
 
 #define DO_EVENT_HOOK_CALLBACK(type, xcbtype, xcbeventprefix, arraytype, match) \
     static void \
@@ -1105,6 +1108,7 @@ void event_handle(xcb_generic_event_t *event)
         EVENT(XCB_REPARENT_NOTIFY, event_handle_reparentnotify);
         EVENT(XCB_UNMAP_NOTIFY, event_handle_unmapnotify);
         EVENT(XCB_SELECTION_CLEAR, event_handle_selectionclear);
+        EVENT(XCB_SELECTION_NOTIFY, event_handle_selectionnotify);
 #undef EVENT
     }
 
@@ -1116,6 +1120,7 @@ void event_handle(xcb_generic_event_t *event)
     EXTENSION_EVENT(randr, XCB_RANDR_NOTIFY, event_handle_randr_output_change_notify);
     EXTENSION_EVENT(shape, XCB_SHAPE_NOTIFY, event_handle_shape_notify);
     EXTENSION_EVENT(xkb, 0, event_handle_xkb_notify);
+    EXTENSION_EVENT(xfixes, XCB_XFIXES_SELECTION_NOTIFY, event_handle_xfixes_selection_notify);
 #undef EXTENSION_EVENT
 }
 
@@ -1134,6 +1139,10 @@ void event_init(void)
     reply = xcb_get_extension_data(globalconf.connection, &xcb_xkb_id);
     if (reply && reply->present)
         globalconf.event_base_xkb = reply->first_event;
+
+    reply = xcb_get_extension_data(globalconf.connection, &xcb_xfixes_id);
+    if (reply && reply->present)
+        globalconf.event_base_xfixes = reply->first_event;
 }
 
 // vim: filetype=c:expandtab:shiftwidth=4:tabstop=8:softtabstop=4:textwidth=80

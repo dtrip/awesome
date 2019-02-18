@@ -53,6 +53,7 @@
 #include <xcb/xinerama.h>
 #include <xcb/xtest.h>
 #include <xcb/shape.h>
+#include <xcb/xfixes.h>
 
 #include <glib-unix.h>
 
@@ -69,6 +70,33 @@ static float main_loop_iteration_limit = 0.1;
 
 /** A pipe that is used to asynchronously handle SIGCHLD */
 static int sigchld_pipe[2];
+
+/* Initialise various random number generators */
+static void
+init_rng(void)
+{
+    /* LuaJIT uses its own, internal RNG, so initialise that */
+    lua_State *L = globalconf_get_lua_State();
+
+    /* Get math.randomseed */
+    lua_getglobal(L, "math");
+    lua_getfield(L, -1, "randomseed");
+
+    /* Push a seed */
+    lua_pushnumber(L, g_random_int() + g_random_double());
+
+    /* Call math.randomseed */
+    lua_call(L, 1, 0);
+
+    /* Remove "math" global */
+    lua_pop(L, 1);
+
+    /* Lua 5.1, Lua 5.2, and (sometimes) Lua 5.3 use rand()/srand() */
+    srand(g_random_int());
+
+    /* When Lua 5.3 is built with LUA_USE_POSIX, it uses random()/srandom() */
+    srandom(g_random_int());
+}
 
 /** Call before exiting.
  */
@@ -733,6 +761,7 @@ main(int argc, char **argv)
     xcb_prefetch_extension_data(globalconf.connection, &xcb_randr_id);
     xcb_prefetch_extension_data(globalconf.connection, &xcb_xinerama_id);
     xcb_prefetch_extension_data(globalconf.connection, &xcb_shape_id);
+    xcb_prefetch_extension_data(globalconf.connection, &xcb_xfixes_id);
 
     if (xcb_cursor_context_new(globalconf.connection, globalconf.screen, &globalconf.cursor_ctx) < 0)
         fatal("Failed to initialize xcb-cursor");
@@ -793,6 +822,13 @@ main(int argc, char **argv)
                 (reply->major_version == 1 && reply->minor_version >= 1));
         p_delete(&reply);
     }
+
+    /* check for xfixes extension */
+    query = xcb_get_extension_data(globalconf.connection, &xcb_xfixes_id);
+    globalconf.have_xfixes = query && query->present;
+    if (globalconf.have_xfixes)
+        xcb_discard_reply(globalconf.connection,
+                xcb_xfixes_query_version(globalconf.connection, 1, 0).sequence);
 
     event_init();
 
@@ -855,6 +891,7 @@ main(int argc, char **argv)
     /* init lua */
     luaA_init(&xdg, &searchpath);
     string_array_wipe(&searchpath);
+    init_rng();
 
     ewmh_init_lua();
 
