@@ -145,6 +145,9 @@ awesome_atexit(bool restart)
 
     /* Disconnect *after* closing lua */
     xcb_cursor_context_free(globalconf.cursor_ctx);
+#ifdef WITH_XCB_ERRORS
+    xcb_errors_context_free(globalconf.errors_ctx);
+#endif
     xcb_disconnect(globalconf.connection);
 
     close(sigchld_pipe[0]);
@@ -345,8 +348,7 @@ acquire_timestamp(void)
             atom, type, 8, 0, "");
     xcb_change_window_attributes(globalconf.connection, win,
             XCB_CW_EVENT_MASK, (uint32_t[]) { 0 });
-    xcb_ungrab_server(globalconf.connection);
-    xcb_flush(globalconf.connection);
+    xutil_ungrab_server(globalconf.connection);
 
     /* Now wait for the event */
     while((event = xcb_wait_for_event(globalconf.connection)))
@@ -752,6 +754,11 @@ main(int argc, char **argv)
                 globalconf.visual->visual_id);
     }
 
+#ifdef WITH_XCB_ERRORS
+    if (xcb_errors_context_new(globalconf.connection, &globalconf.errors_ctx) < 0)
+        fatal("Failed to initialize xcb-errors");
+#endif
+
     /* Get a recent timestamp */
     acquire_timestamp();
 
@@ -882,8 +889,7 @@ main(int argc, char **argv)
                                  ROOT_WINDOW_EVENT_MASK);
 
     /* we will receive events, stop grabbing server */
-    xcb_ungrab_server(globalconf.connection);
-    xcb_flush(globalconf.connection);
+    xutil_ungrab_server(globalconf.connection);
 
     /* get the current wallpaper, from now on we are informed when it changes */
     root_update_wallpaper();

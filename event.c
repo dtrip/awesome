@@ -25,6 +25,7 @@
 #include "objects/tag.h"
 #include "objects/selection_getter.h"
 #include "objects/drawin.h"
+#include "objects/selection_acquire.h"
 #include "objects/selection_watcher.h"
 #include "xwindow.h"
 #include "ewmh.h"
@@ -459,7 +460,7 @@ event_handle_configurenotify(xcb_configure_notify_event_t *ev)
     xcb_screen_t *screen = globalconf.screen;
 
     if(ev->window == screen->root)
-        globalconf.screen_need_refresh = true;
+        screen_schedule_refresh();
 
     /* Copy what XRRUpdateConfiguration() would do: Update the configuration */
     if(ev->window == screen->root) {
@@ -881,7 +882,7 @@ event_handle_randr_screen_change_notify(xcb_randr_screen_change_notify_event_t *
         globalconf.screen->height_in_millimeters = ev->mheight;;
     }
 
-    globalconf.screen_need_refresh = true;
+    screen_schedule_refresh();
 }
 
 /** XRandR event handler for RRNotify subtype XRROutputChangeNotifyEvent
@@ -1013,7 +1014,8 @@ event_handle_selectionclear(xcb_selection_clear_event_t *ev)
     {
         warn("Lost WM_Sn selection, exiting...");
         g_main_loop_quit(globalconf.loop);
-    }
+    } else
+        selection_handle_selectionclear(ev);
 }
 
 /** \brief awesome xerror function.
@@ -1034,10 +1036,24 @@ xerror(xcb_generic_error_t *e)
            && e->major_code == XCB_CONFIGURE_WINDOW))
         return;
 
-    warn("X error: request=%s (major %d, minor %d), error=%s (%d)",
-         xcb_event_get_request_label(e->major_code),
+#ifdef WITH_XCB_ERRORS
+    const char *major = xcb_errors_get_name_for_major_code(
+            globalconf.errors_ctx, e->major_code);
+    const char *minor = xcb_errors_get_name_for_minor_code(
+            globalconf.errors_ctx, e->major_code, e->minor_code);
+    const char *extension = NULL;
+    const char *error = xcb_errors_get_name_for_error(
+            globalconf.errors_ctx, e->error_code, &extension);
+#else
+    const char *major = xcb_event_get_request_label(e->major_code);
+    const char *minor = NULL;
+    const char *extension = NULL;
+    const char *error = xcb_event_get_error_label(e->error_code);
+#endif
+    warn("X error: request=%s%s%s (major %d, minor %d), error=%s%s%s (%d)",
+         major, minor == NULL ? "" : "-", NONULL(minor),
          e->major_code, e->minor_code,
-         xcb_event_get_error_label(e->error_code),
+         NONULL(extension), extension == NULL ? "" : "-", error,
          e->error_code);
 
     return;
@@ -1109,6 +1125,7 @@ void event_handle(xcb_generic_event_t *event)
         EVENT(XCB_UNMAP_NOTIFY, event_handle_unmapnotify);
         EVENT(XCB_SELECTION_CLEAR, event_handle_selectionclear);
         EVENT(XCB_SELECTION_NOTIFY, event_handle_selectionnotify);
+        EVENT(XCB_SELECTION_REQUEST, selection_handle_selectionrequest);
 #undef EVENT
     }
 

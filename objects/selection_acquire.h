@@ -1,7 +1,7 @@
 /*
- * event.h - event handlers header
+ * selection_acquire.c - objects for selection ownership header
  *
- * Copyright © 2007-2009 Julien Danjou <julien@danjou.info>
+ * Copyright © 2019 Uli Schlachter <psychon@znc.in>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,41 +19,16 @@
  *
  */
 
-#ifndef AWESOME_EVENT_H
-#define AWESOME_EVENT_H
+#ifndef AWESOME_OBJECTS_SELECTION_ACQUIRE_H
+#define AWESOME_OBJECTS_SELECTION_ACQUIRE_H
 
-#include "banning.h"
-#include "globalconf.h"
-#include "stack.h"
-
+#include <lua.h>
 #include <xcb/xcb.h>
 
-/* luaa.c */
-void luaA_emit_refresh(void);
-
-/* objects/drawin.c */
-void drawin_refresh(void);
-
-/* objects/client.c */
-void client_refresh(void);
-void client_focus_refresh(void);
-void client_destroy_later(void);
-
-static inline int
-awesome_refresh(void)
-{
-    luaA_emit_refresh();
-    drawin_refresh();
-    client_refresh();
-    banning_refresh();
-    stack_refresh();
-    client_destroy_later();
-    return xcb_flush(globalconf.connection);
-}
-
-void event_init(void);
-void event_handle(xcb_generic_event_t *);
-void event_drawable_under_mouse(lua_State *, int);
+void selection_acquire_class_setup(lua_State*);
+void selection_handle_selectionclear(xcb_selection_clear_event_t*);
+void selection_handle_selectionrequest(xcb_selection_request_event_t*);
 
 #endif
+
 // vim: filetype=c:expandtab:shiftwidth=4:tabstop=8:softtabstop=4:textwidth=80
