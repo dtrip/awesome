@@ -126,7 +126,7 @@ local function add_root_keybindings(self, list)
     -- everything into one operation. In not so extreme cases, not doing so
     -- would slow down `awesome.restart()` by a small, but noticeable amount
     -- of time.
-    gtable.merge(delay_list, list)
+    table.insert(delay_list, {self, list})
 
     -- As of Awesome v4.3, `root.keys()` is an all or nothing API and there
     -- isn't a standard mechanism to add and remove keybindings at runtime
@@ -137,26 +137,35 @@ local function add_root_keybindings(self, list)
         gtimer.delayed_call(function()
             local ret = {}
 
-            for _, v in ipairs(delay_list) do
-                local mods, key, press, release, description = unpack(v)
+            for _, obj in ipairs(delay_list) do
+                local obj_self, obj_list = obj[1], obj[2]
 
-                if press then
-                    local old_press = press
-                    press = function(...)
-                        self:start()
-                        old_press(...)
+                for _, v in ipairs(obj_list) do
+                    local mods, key, press, release, data = unpack(v)
+
+                    if type(release) == 'table' then
+                        data = release
+                        release = nil
                     end
-                end
 
-                if release then
-                    local old_release = release
-                    release = function(...)
-                        self:start()
-                        old_release(...)
+                    if press then
+                        local old_press = press
+                        press = function(...)
+                            obj_self:start()
+                            old_press(...)
+                        end
                     end
-                end
 
-                table.insert(ret, akey(mods, key, press, release, description))
+                    if release then
+                        local old_release = release
+                        release = function(...)
+                            obj_self:start()
+                            old_release(...)
+                        end
+                    end
+
+                    table.insert(ret, akey(mods, key, press, release, data))
+                end
             end
 
             -- Wow...
@@ -215,8 +224,8 @@ local function runner(self, modifiers, key, event)
     local seq_len = glib.utf8_strlen(self.sequence, -1)
 
     -- Record the key sequence
-    if key == "BackSpace" and seq_len > 0 then
-        self.sequence = glib.utf8_substring(self.sequence, 0, seq_len - 2)
+    if key == "BackSpace" and seq_len > 0 and event == "release" then
+        self.sequence = glib.utf8_substring(self.sequence, 0, seq_len - 1)
     elseif glib.utf8_strlen(key, -1) == 1 and  event == "release" then
         self.sequence = self.sequence..key
     end

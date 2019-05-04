@@ -211,6 +211,8 @@ local escape_subs    = { ['<'] = "&lt;", ['>'] = "&gt;", ['&'] = "&amp;" }
 
 -- Cache the markup
 local function set_escaped_text(self)
+    if not self.box then return end
+
     local text = self.message or ""
     local title = self.title and self.title .. "\n" or ""
 
@@ -240,10 +242,6 @@ local function set_escaped_text(self)
 
     if self.size_info then update_size(self) end
 end
-
-naughty.connect_signal("property::text" ,set_escaped_text)
-naughty.connect_signal("property::title",set_escaped_text)
-
 
 local function cleanup(self, _ --[[reason]], keep_visible)
     -- It is not a legacy notification
@@ -374,7 +372,6 @@ function naughty.default_notification_handler(notification, args)
     textbox:set_font(font)
 
     notification.textbox = textbox
-    set_escaped_text(notification)
 
     -- Update the content if it changes
     notification:connect_signal("property::message", set_escaped_text)
@@ -400,8 +397,8 @@ function naughty.default_notification_handler(notification, args)
             local action_width = w + 2 * margin
 
             actionmarginbox:buttons(gtable.join(
-                button({ }, 1, function() action:trigger() end),
-                button({ }, 3, function() action:trigger() end)
+                button({ }, 1, function() action:invoke() end),
+                button({ }, 3, function() action:invoke() end)
             ))
             actionslayout:add(actionmarginbox)
 
@@ -517,10 +514,14 @@ function naughty.default_notification_handler(notification, args)
     notification.box.visible = true
 
     -- populate widgets
+    set_escaped_text(notification)
+
     local layout = wibox.layout.fixed.horizontal()
+
     if iconmargin then
         layout:add(iconmargin)
     end
+
     layout:add(marginbox)
 
     local completelayout = wibox.layout.fixed.vertical()

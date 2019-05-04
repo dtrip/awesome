@@ -53,6 +53,8 @@ tparam_alias('screen_or_idx', 'screen|int')
 new_type("function", "Functions")
 -- Documentation for objects properties
 new_type("property", "Object properties", false, "Type")
+-- Documentation for objects deprecated properties
+new_type("deprecatedproperty", "Deprecated object properties", false, "Type")
 -- New type for signals
 new_type("signal", "Signals", false, "Arguments")
 -- New type for signals connections
@@ -69,8 +71,10 @@ new_type("clientlayout", "Client layouts", false, "param")
 new_type("sourcefunction", "List source functions", false)
 -- Document some callback prototypes
 new_type("callback", "Callback functions prototype", false, "Parameters")
--- awful.rules sources
+-- gears.matcher / awful.rules sources
 new_type("rulesources", "Rule sources", false, "param")
+-- gears.matcher / awful.rules rule components
+new_type("rulecomponent", "Rule components", false, "Type")
 -- Filter functions for the taglist/tasklist/layoutlist
 new_type("filterfunction", "List filters", false)
 -- Extra client properties available only in awful.rules/spawn constructs
@@ -118,6 +122,7 @@ file = {
         '../lib/awful/init.lua',
         '../lib/awful/remote.lua',
         '../lib/awful/startup_notification.lua',
+        '../lib/awful/mouse/drag_to_tag.lua',
         '../lib/gears/init.lua',
         '../lib/wibox/layout/init.lua',
         '../lib/wibox/container/init.lua',
@@ -142,7 +147,8 @@ file = {
 }
 
 local no_prefix = {
-    property = true, signal = true, clientruleproperty = true
+    property = true, signal = true, clientruleproperty = true,
+    deprecatedproperty = true,
 }
 
 custom_display_name_handler = function(item, default_handler)
@@ -153,7 +159,7 @@ custom_display_name_handler = function(item, default_handler)
         return name ~= "" and name or item.name
     end
 
-    if item.type == "deprecated" then
+    if item.type == "deprecated" or item.type == "deprecatedproperty" then
         return default_handler(item) .. "</a> <i class=\"deprecated_label\">[deprecated]</i><a>"
     end
 

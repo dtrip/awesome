@@ -38,32 +38,6 @@ function common.create_buttons(buttons, object)
     end
 end
 
-local function default_template()
-    local ib  = wibox.widget.imagebox()
-    local tb  = wibox.widget.textbox()
-    local bgb = wibox.container.background()
-    local tbm = wibox.container.margin(tb, dpi(4), dpi(4))
-    local ibm = wibox.container.margin(ib, dpi(4))
-    local l   = wibox.layout.fixed.horizontal()
-
-    -- All of this is added in a fixed widget
-    l:fill_space(true)
-    l:add(ibm)
-    l:add(tbm)
-
-    -- And all of this gets a background
-    bgb:set_widget(l)
-
-    return {
-        ib      = ib,
-        tb      = tb,
-        bgb     = bgb,
-        tbm     = tbm,
-        ibm     = ibm,
-        primary = bgb,
-    }
-end
-
 local function custom_template(args)
     local l = base.make_widget_from_value(args.widget_template)
 
@@ -82,6 +56,52 @@ local function custom_template(args)
         update_callback = l.update_callback,
         create_callback = l.create_callback,
     }
+end
+
+local function default_template()
+    return custom_template {
+        widget_template = {
+            id = 'background_role',
+            border_strategy = 'inner',
+            widget = wibox.container.background,
+            {
+                widget = wibox.layout.fixed.horizontal,
+                fill_space = true,
+                {
+                    id = 'icon_margin_role',
+                    widget = wibox.container.margin,
+                    {
+                        id = 'icon_role',
+                        widget = wibox.widget.imagebox,
+                        left = dpi(4),
+                    },
+                },
+                {
+                    id = 'text_margin_role',
+                    widget = wibox.container.margin,
+                    left = dpi(4),
+                    right = dpi(4),
+                    {
+                        id = 'text_role',
+                        widget = wibox.widget.textbox,
+                    },
+                }
+            }
+        }
+    }
+end
+
+-- Find all the childrens (without the hierarchy) and set a property.
+function common._set_common_property(widget, property, value)
+    if widget["set_"..property] then
+        widget["set_"..property](widget, value)
+    end
+
+    if widget.get_children then
+        for _, w in ipairs(widget:get_children()) do
+            common._set_common_property(w, property, value)
+        end
+    end
 end
 
 --- Common update method.
@@ -107,6 +127,10 @@ function common.list_update(w, buttons, label, data, objects, args)
 
             if cache.create_callback then
                 cache.create_callback(cache.primary, o, i, objects)
+            end
+
+            if args and args.create_callback then
+                args.create_callback(cache.primary, o, i, objects)
             end
 
             data[o] = cache
@@ -142,9 +166,9 @@ function common.list_update(w, buttons, label, data, objects, args)
                 })
             end
 
-            cache.bgb.shape              = item_args.shape
-            cache.bgb.shape_border_width = item_args.shape_border_width
-            cache.bgb.shape_border_color = item_args.shape_border_color
+            cache.bgb.shape        = item_args.shape
+            cache.bgb.border_width = item_args.shape_border_width
+            cache.bgb.border_color = item_args.shape_border_color
 
         end
 
@@ -152,6 +176,14 @@ function common.list_update(w, buttons, label, data, objects, args)
             cache.ib:set_image(icon)
         elseif cache.ibm then
             cache.ibm:set_margins(0)
+        end
+
+        if item_args.icon_size and cache.ib then
+            cache.ib.forced_height = item_args.icon_size
+            cache.ib.forced_width  = item_args.icon_size
+        elseif cache.ib then
+            cache.ib.forced_height = nil
+            cache.ib.forced_width  = nil
         end
 
         w:add(cache.primary)

@@ -10,10 +10,13 @@
 Some general text about Awesome v4.4 should be here. Hopefully someone will
 notice that it is not yet here before we release...
 
-This document was last updated at commit v4.3-148-g795c792d1.
+This document was last updated at commit v4.3-197-g9085ed631.
 
 ## New features
 
+* `awful.screen` now has a `request::wallpaper` and a
+  `request::desktop_decoration` signal. They make some workflow implementation
+  cleaner.
 * Lua code can interact with the selection contents via the new
   `selection.acquire`, `selection.getter`, and `selection.watcher` objects
 * Pending delayed calls (`gears.timer.delayed_call`) can be dispatched via
@@ -21,6 +24,15 @@ This document was last updated at commit v4.3-148-g795c792d1.
 * `naughty` was rewritten TODO TODO say more about this TODO TODO
 * The `rules` argument in `awful.spawn.once` and `.single_instance` is now
   optional
+* The `wibox.container.background` now has a `border_strategy` property to
+  define how the content is resized when a border is present.
+* The `wibox.container.margin` now allows tables in the `margins` property.
+* The declarative widget syntax now allows to directly use functions instead of
+  `{widget = myfunction}`.
+* The `awful.widget.tasklist` now resizes the client icons properly.
+* The `awful.widget.tasklist` and `awful.widget.taglist` will now set the
+  `client` and `tag` properly respectively on each widget of the template
+  automatically. This reduces the amount of boilerplate code.
 
 ## Noteworthy fixes
 
@@ -31,6 +43,8 @@ This document was last updated at commit v4.3-148-g795c792d1.
 * Under complicated circumstances, AwesomeWM could have run Lua code while
   having the X11 server grabbed. This had the potential to cause deadlocks with
   Lua code using `io.popen`. Usage of `io.popen` is still strongly discouraged.
+* `wibox{ input_passthrough = true }` now works correctly. Previously, the
+  property could only be set on already-constructed wiboxes.
 
 ## Behavior changes
 
@@ -40,6 +54,9 @@ This document was last updated at commit v4.3-148-g795c792d1.
   now always behaves as if this option is set to `true`. The old behaviour can
   be simulated with `wibox.layout.stack`.
 * Awesome now initialises Lua's random number generator from a good source
+* `naughty.dbus` now uses Gio for talking to DBus. This is a first step in the
+  deprecation of Awesome's own DBus bindings and could lead to behaviour changes
+  on DBus.
 
 <a name="v43"></a>
 # Awesome window manager framework version 4.3 changes
