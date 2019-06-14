@@ -13,7 +13,7 @@
 -- @author Emmanuel Lepage Vallee
 -- @copyright 2008 koniu
 -- @copyright 2017 Emmanuel Lepage Vallee
--- @classmod naughty.notification
+-- @coreclassmod naughty.notification
 ---------------------------------------------------------------------------
 local gobject = require("gears.object")
 local gtable  = require("gears.table")
@@ -53,7 +53,7 @@ local notification = {}
 -- @beautiful beautiful.notification_opacity
 -- @tparam[opt] int notification_opacity
 
---- Notifications margin.
+--- The margins inside of the notification widget (or popup).
 -- @beautiful beautiful.notification_margin
 -- @tparam int notification_margin
 
@@ -65,6 +65,11 @@ local notification = {}
 -- @beautiful beautiful.notification_height
 -- @tparam int notification_height
 
+--- The spacing between the notifications.
+-- @beautiful beautiful.notification_spacing
+-- @param[opt=2] number
+-- @see gears.surface
+
 -- Unique identifier of the notification.
 -- This is the equivalent to a PID as allows external applications to select
 -- notifications.
@@ -72,8 +77,12 @@ local notification = {}
 -- @param string
 -- @see title
 
--- Text of the notification  [[deprecated]]
--- @property text
+--- Text of the notification.
+--
+-- This exists only for the pre-AwesomeWM v4.4 new notification implementation.
+-- Please always use `title`.
+--
+-- @deprecatedproperty text
 -- @param string
 -- @see title
 
@@ -105,23 +114,30 @@ local notification = {}
 -- * *bottom_right*
 -- * *top_middle*
 -- * *bottom_middle*
+-- * *middle*
 --
---@DOC_awful_notification_corner_EXAMPLE@
+--@DOC_awful_notification_box_corner_EXAMPLE@
 --
 -- @property position
 -- @param string
+-- @see awful.placement.next_to
 
 --- Boolean forcing popups to display on top.
 -- @property ontop
 -- @param boolean
 
 --- Popup height.
+--
+--@DOC_awful_notification_geometry_EXAMPLE@
+--
 -- @property height
 -- @param number
+-- @see width
 
 --- Popup width.
 -- @property width
 -- @param number
+-- @see height
 
 --- Notification font.
 --@DOC_naughty_colors_EXAMPLE@
@@ -137,12 +153,18 @@ local notification = {}
 -- @param number
 
 --- Foreground color.
+--
+--@DOC_awful_notification_fg_EXAMPLE@
+--
 -- @property fg
 -- @tparam string|color|pattern fg
 -- @see title
 -- @see gears.color
 
 --- Background color.
+--
+--@DOC_awful_notification_bg_EXAMPLE@
+--
 -- @property bg
 -- @tparam string|color|pattern bg
 -- @see title
@@ -154,31 +176,58 @@ local notification = {}
 -- @see title
 
 --- Border color.
+--
+--@DOC_awful_notification_border_color_EXAMPLE@
+--
 -- @property border_color
 -- @param string
 -- @see title
 -- @see gears.color
 
 --- Widget shape.
+--
+-- Note that when using a custom `request::display` handler or `naughty.rules`,
+-- choosing between multiple shapes depending on the content can be done using
+-- expressions like:
+--
+--    -- The notification object is called `n`
+--    shape = #n.actions > 0 and
+--        gears.shape.rounded_rect or gears.shape.rounded_bar,
+--
+--@DOC_awful_notification_shape_EXAMPLE@
+--
 --@DOC_naughty_shape_EXAMPLE@
+--
 -- @property shape
+-- @tparam gears.shape shape
 
 --- Widget opacity.
 -- @property opacity
--- @param number From 0 to 1
+-- @tparam number opacity Between 0 to 1.
 
 --- Widget margin.
+--
+--@DOC_awful_notification_margin_EXAMPLE@
+--
 -- @property margin
 -- @tparam number|table margin
 -- @see shape
 
 --- Function to run on left click.
--- @property run
+--
+-- Use the signals rather than this.
+--
+-- @deprecatedproperty run
 -- @param function
+-- @see destroyed
 
 --- Function to run when notification is destroyed.
--- @property destroy
+--
+-- Use the signals rather than this.
+--
+-- @deprecatedproperty destroy
 -- @param function
+-- @see destroyed
 
 --- Table with any of the above parameters.
 -- args will override ones defined
@@ -239,6 +288,7 @@ local notification = {}
 
 --- Destroy notification by notification object.
 --
+-- @method destroy
 -- @tparam string reason One of the reasons from `notification_closed_reason`
 -- @tparam[opt=false] boolean keep_visible If true, keep the notification visible
 -- @return True if the popup was successfully destroyed, false otherwise
@@ -260,6 +310,7 @@ function notification:destroy(reason, keep_visible)
 end
 
 --- Set new notification timeout.
+-- @method reset_timeout
 -- @tparam number new_timeout Time in seconds after which notification disappears.
 function notification:reset_timeout(new_timeout)
     if self.timer then self.timer:stop() end
@@ -376,16 +427,18 @@ local function convert_actions(actions)
 
     local naction = require("naughty.action")
 
+    local new_actions = {}
+
     -- Does not attempt to handle when there is a mix of strings and objects
     for idx, name in pairs(actions) do
-        local cb = nil
+        local cb, old_idx = nil, idx
 
         if type(name) == "function" then
             cb = name
         end
 
         if type(idx) == "string" then
-            name, idx = idx, nil
+            name, idx = idx, #actions+1
         end
 
         local a = naction {
@@ -397,9 +450,14 @@ local function convert_actions(actions)
             a:connect_signal("invoked", cb)
         end
 
-        -- Yes, it modifies `args`, this is legacy code, cloning the args
-        -- just for this isn't worth it.
-        actions[idx] = a
+        new_actions[old_idx] = a
+    end
+
+    -- Yes, it modifies `args`, this is legacy code, cloning the args
+    -- just for this isn't worth it.
+    for old_idx, a in pairs(new_actions) do
+        actions[a.position] = a
+        actions[ old_idx  ] = nil
     end
 end
 
@@ -414,7 +472,7 @@ end
 -- @tparam[opt=focused] integer|screen args.screen Target screen for the notification.
 -- @string[opt="top_right"] args.position Corner of the workarea displaying the popups.
 --   Values: `"top_right"`, `"top_left"`, `"bottom_left"`,
---   `"bottom_right"`, `"top_middle"`, `"bottom_middle"`.
+--   `"bottom_right"`, `"top_middle"`, `"bottom_middle"`, `"middle"`.
 -- @bool[opt=true] args.ontop Boolean forcing popups to display on top.
 -- @int[opt=`beautiful.notification_height` or auto] args.height Popup height.
 -- @int[opt=`beautiful.notification_width` or auto] args.width Popup width.
@@ -448,7 +506,7 @@ end
 -- @usage naughty.notify({ title = "Achtung!", message = "You're idling", timeout = 0 })
 -- @treturn ?table The notification object, or nil in case a notification was
 --   not displayed.
--- @function naughty.notification
+-- @constructorfct naughty.notification
 local function create(args)
     if cst.config.notify_callback then
         args = cst.config.notify_callback(args)
@@ -493,7 +551,7 @@ local function create(args)
         rawget(n, "preset") or {}
     ))
 
-    if is_old_action  then
+    if is_old_action then
         convert_actions(args.actions)
     end
 
@@ -503,6 +561,16 @@ local function create(args)
 
     for k, v in pairs(args) do
         private[k] = v
+    end
+
+    -- notif.actions should not be nil to allow cheching if there is actions
+    -- using the shorthand `if #notif.actions > 0 then`
+    private.actions = private.actions or {}
+
+    -- Make sure the action are for this notification. Sharing actions with
+    -- multiple notification is not supported.
+    for _, a in ipairs(private.actions) do
+        a.notification = n
     end
 
     -- It's an automatic property
@@ -520,7 +588,8 @@ local function create(args)
 
     -- Let all listeners handle the actual visual aspects
     if (not n.ignore) and (not n.preset.ignore) then
-        naughty.emit_signal("request::display", n, args)
+        naughty.emit_signal("request::display" , n, args)
+        naughty.emit_signal("request::fallback", n, args)
     end
 
     -- Because otherwise the setter logic would not be executed
@@ -541,5 +610,7 @@ function notification._gen_next_id()
     counter = counter+1
     return counter
 end
+
+--@DOC_object_COMMON@
 
 return setmetatable(notification, {__call = function(_, ...) return create(...) end})

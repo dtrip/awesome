@@ -34,7 +34,7 @@
 --
 -- @author Julien Danjou &lt;julien@danjou.info&gt;
 -- @copyright 2008-2009 Julien Danjou
--- @classmod awful.widget.taglist
+-- @widgetmod awful.widget.taglist
 ---------------------------------------------------------------------------
 
 -- Grab environment we need
@@ -153,7 +153,7 @@ taglist.filter, taglist.source = {}, {}
 -- This will be the fallback for state specific shapes.
 -- To get a shape for the whole taglist, use `wibox.container.background`.
 -- @beautiful beautiful.taglist_shape
--- @param[opt=rectangle] gears.shape
+-- @tparam[opt=gears.shape.rectangle] gears.shape shape
 -- @see gears.shape
 -- @see beautiful.taglist_shape_empty
 -- @see beautiful.taglist_shape_focus
@@ -172,7 +172,7 @@ taglist.filter, taglist.source = {}, {}
 
 --- The shape used for the empty elements.
 -- @beautiful beautiful.taglist_shape_empty
--- @param[opt=rectangle] gears.shape
+-- @tparam[opt=gears.shape.rectangle] gears.shape shape
 -- @see gears.shape
 
 --- The shape used for the empty elements border width.
@@ -187,7 +187,7 @@ taglist.filter, taglist.source = {}, {}
 
 --- The shape used for the selected elements.
 -- @beautiful beautiful.taglist_shape_focus
--- @param[opt=rectangle] gears.shape
+-- @tparam[opt=gears.shape.rectangle] gears.shape shape
 -- @see gears.shape
 
 --- The shape used for the selected elements border width.
@@ -202,7 +202,7 @@ taglist.filter, taglist.source = {}, {}
 
 --- The shape used for the urgent elements.
 -- @beautiful beautiful.taglist_shape_urgent
--- @param[opt=rectangle] gears.shape
+-- @tparam[opt=gears.shape.rectangle] gears.shape shape
 -- @see gears.shape
 
 --- The shape used for the urgent elements border width.
@@ -217,7 +217,7 @@ taglist.filter, taglist.source = {}, {}
 
 --- The shape used for the volatile elements.
 -- @beautiful beautiful.taglist_shape_volatile
--- @param[opt=rectangle] gears.shape
+-- @tparam[opt=gears.shape.rectangle] gears.shape shape
 -- @see gears.shape
 
 --- The shape used for the volatile elements border width.
@@ -425,7 +425,7 @@ end
 --   update. See `awful.widget.common`.
 -- @tparam[opt] widget args.layout Optional layout widget for tag widgets. Default
 --   is wibox.layout.fixed.horizontal().
--- @tparam[opt=awful.taglist.source.for_screen] function args.source The
+-- @tparam[opt=awful.widget.taglist.source.for_screen] function args.source The
 --  function used to generate the list of tag.
 -- @tparam[opt] table args.widget_template A custom widget to be used for each tag
 -- @tparam[opt={}] table args.style The style overrides default theme.
@@ -462,7 +462,7 @@ end
 -- @param style **DEPRECATED** use args.style
 -- @param update_function **DEPRECATED** use args.update_function
 -- @param base_widget **DEPRECATED** use args.base_widget
--- @function awful.taglist
+-- @constructorfct awful.widget.taglist
 function taglist.new(args, filter, buttons, style, update_function, base_widget)
 
     local screen = nil
@@ -566,7 +566,7 @@ end
 --- Filtering function to include all nonempty tags on the screen.
 -- @param t The tag.
 -- @return true if t is not empty, else false
--- @filterfunction awful.taglist.filter.noempty
+-- @filterfunction awful.widget.taglist.filter.noempty
 function taglist.filter.noempty(t)
     return #t:clients() > 0 or t.selected
 end
@@ -574,14 +574,14 @@ end
 --- Filtering function to include selected tags on the screen.
 -- @param t The tag.
 -- @return true if t is not empty, else false
--- @filterfunction awful.taglist.filter.selected
+-- @filterfunction awful.widget.taglist.filter.selected
 function taglist.filter.selected(t)
     return t.selected
 end
 
 --- Filtering function to include all tags on the screen.
 -- @return true
--- @filterfunction awful.taglist.filter.all
+-- @filterfunction awful.widget.taglist.filter.all
 function taglist.filter.all()
     return true
 end
@@ -590,7 +590,7 @@ end
 --
 -- This is the default source.
 --
--- @sourcefunction awful.taglist.source.for_screen
+-- @sourcefunction awful.widget.taglist.source.for_screen
 -- @see screen
 function taglist.source.for_screen(s)
     return s.tags

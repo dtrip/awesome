@@ -13,11 +13,16 @@
 --
 --@DOC_naughty_actions_EXAMPLE@
 --
+-- Use the `naughty.notification.position` property to control where the popup
+-- is located.
+--
+--@DOC_awful_notification_corner_EXAMPLE@
+--
 -- @author koniu &lt;gkusnierz@gmail.com&gt;
 -- @author Emmanuel Lepage Vallee &lt;elv1313@gmail.com&gt;
 -- @copyright 2008 koniu
 -- @copyright 2017 Emmanuel Lepage Vallee
--- @classmod naughty.layout.legacy
+-- @popupmod naughty.layout.legacy
 ----------------------------------------------------------------------------
 
 local capi      = { screen = screen, awesome = awesome }
@@ -54,14 +59,37 @@ screen.connect_for_each_screen(function(s)
         bottom_left = {},
         bottom_middle = {},
         bottom_right = {},
+        middle = {},
     }
 end)
+
+--- Sum heights of notifications at position
+--
+-- @param s Screen to use
+-- @param position top_right | top_left | bottom_right | bottom_left
+--   | top_middle | bottom_middle | middle
+-- @param[opt] idx Index of last notification
+-- @return Height of notification stack with spacing
+local function get_total_heights(s, position, idx)
+    local sum = 0
+    local notifications = current_notifications[s][position]
+    idx = idx or #notifications
+    for i = 1, idx, 1 do
+        local n = notifications[i]
+
+        -- `n` will not nil when there is too many notifications to fit in `s`
+        if n then
+            sum = sum + n.height + naughty.config.spacing
+        end
+    end
+    return sum
+end
 
 --- Evaluate desired position of the notification by index - internal
 --
 -- @param s Screen to use
 -- @param position top_right | top_left | bottom_right | bottom_left
---   | top_middle | bottom_middle
+--   | top_middle | bottom_middle | middle
 -- @param idx Index of the notification
 -- @param[opt] width Popup width.
 -- @param height Popup height
@@ -83,21 +111,16 @@ local function get_offset(s, position, idx, width, height)
     end
 
     -- calculate existing popups' height
-    local existing = 0
-    for i = 1, idx-1, 1 do
-        local n = current_notifications[s][position][i]
-
-        -- `n` will not nil when there is too many notifications to fit in `s`
-        if n then
-            existing = existing + n.height + naughty.config.spacing
-        end
-    end
+    local existing = get_total_heights(s, position, idx-1)
 
     -- calculate y
     if position:match("top") then
         v.y = ws.y + naughty.config.padding + existing
-    else
+    elseif position:match("bottom") then
         v.y = ws.y + ws.height - (naughty.config.padding + height + existing)
+    else
+        local total = get_total_heights(s, position)
+        v.y = ws.y + (ws.height - total) / 2 + naughty.config.padding + existing
     end
 
     -- Find old notification to replace in case there is not enough room.
@@ -261,23 +284,10 @@ end
 
 naughty.connect_signal("destroyed", cleanup)
 
---- The default notification GUI handler.
---
--- To disable this handler, use:
---
---    naughty.disconnect_signal(
---        "request::display", naughty.default_notification_handler
---    )
---
--- It looks like:
---
---@DOC_naughty_actions_EXAMPLE@
---
--- @tparam table notification The `naughty.notification` object.
--- @tparam table args Any arguments passed to the `naughty.notify` function,
---  including, but not limited to all `naughty.notification` properties.
--- @signalhandler naughty.default_notification_handler
 function naughty.default_notification_handler(notification, args)
+    -- This is a fallback for users whose config doesn't have the newer
+    -- `request::display` section.
+    if naughty.has_display_handler then return end
 
     -- If request::display is called more than once, simply make sure the wibox
     -- is visible.
@@ -397,8 +407,14 @@ function naughty.default_notification_handler(notification, args)
             local action_width = w + 2 * margin
 
             actionmarginbox:buttons(gtable.join(
-                button({ }, 1, function() action:invoke() end),
-                button({ }, 3, function() action:invoke() end)
+                button({ }, 1, function()
+                    action:invoke()
+                    notification:destroy()
+                end),
+                button({ }, 3, function()
+                    action:invoke()
+                    notification:destroy()
+                end)
             ))
             actionslayout:add(actionmarginbox)
 
@@ -543,4 +559,4 @@ function naughty.default_notification_handler(notification, args)
     end
 end
 
-naughty.connect_signal("request::display", naughty.default_notification_handler)
+naughty.connect_signal("request::fallback", naughty.default_notification_handler)

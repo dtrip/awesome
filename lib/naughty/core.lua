@@ -122,6 +122,10 @@ gtable.crush(naughty, require("naughty.constants"))
 -- @property active
 -- @param table
 
+--- True when there is a handler connected to `request::display`.
+-- @property has_display_handler
+-- @param boolean
+
 local properties = {
     suspended         = false,
     expiration_paused = false
@@ -151,6 +155,7 @@ screen.connect_for_each_screen(function(s)
         bottom_left = {},
         bottom_middle = {},
         bottom_right = {},
+        middle = {},
     }
 end)
 
@@ -195,6 +200,7 @@ local conns = {}
 -- @usage naughty.connect_signal("added", function(notif)
 --    -- do something
 -- end)
+-- @staticfct naughty.connect_signal
 function naughty.connect_signal(name, func)
     assert(name)
     conns[name] = conns[name] or {}
@@ -204,6 +210,7 @@ end
 --- Emit a notification signal.
 -- @tparam string name The signal name.
 -- @param ... The signal callback arguments
+-- @staticfct naughty.emit_signal
 function naughty.emit_signal(name, ...)
     assert(name)
     for _, func in pairs(conns[name] or {}) do
@@ -215,6 +222,7 @@ end
 -- @tparam string name The name of the signal
 -- @tparam function func The attached function
 -- @treturn boolean If the disconnection was successful
+-- @staticfct naughty.disconnect_signal
 function naughty.disconnect_signal(name, func)
     for k, v in ipairs(conns[name] or {}) do
         if v == func then
@@ -290,6 +298,7 @@ end
 -- @treturn true|nil True if all notifications were successfully destroyed, nil
 -- otherwise.
 -- @see notification_closed_reason
+-- @staticfct naughty.destroy_all_notifications
 function naughty.destroy_all_notifications(screens, reason)
     if not screens then
         screens = {}
@@ -322,6 +331,7 @@ end
 --
 -- @param id ID of the notification
 -- @return notification object if it was found, nil otherwise
+-- @staticfct naughty.get_by_id
 function naughty.get_by_id(id)
     -- iterate the notifications to get the notfications with the correct ID
     for s in pairs(naughty.notifications) do
@@ -338,6 +348,10 @@ end
 -- Use an explicit getter to make it read only.
 function naughty.get_active()
     return naughty._active
+end
+
+function naughty.get_has_display_handler()
+    return conns["request::display"] and #conns["request::display"] > 0 or false
 end
 
 --- Set new notification timeout.
@@ -448,7 +462,7 @@ end
 
 --- Emitted when a notification has to be displayed.
 --
--- To add an handler, use:
+-- To add a handler, use:
 --
 --    naughty.connect_signal("request::display", function(notification, args)
 --        -- do something
@@ -537,7 +551,7 @@ end
 -- @tparam[opt=focused] integer|screen args.screen Target screen for the notification.
 -- @string[opt="top_right"] args.position Corner of the workarea displaying the popups.
 --   Values: `"top_right"`, `"top_left"`, `"bottom_left"`,
---   `"bottom_right"`, `"top_middle"`, `"bottom_middle"`.
+--   `"bottom_right"`, `"top_middle"`, `"bottom_middle"`, `"middle"`.
 -- @bool[opt=true] args.ontop Boolean forcing popups to display on top.
 -- @int[opt=`beautiful.notification_height` or auto] args.height Popup height.
 -- @int[opt=`beautiful.notification_width` or auto] args.width Popup width.

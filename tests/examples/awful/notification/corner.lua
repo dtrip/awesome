@@ -1,4 +1,5 @@
 --DOC_HIDE_ALL
+--DOC_GEN_IMAGE
 local naughty = require("naughty") --DOC_HIDE
 
 for _, pos in ipairs {
@@ -8,11 +9,12 @@ for _, pos in ipairs {
     "bottom_left",
     "bottom_middle",
     "bottom_right",
+    "middle",
 } do
     naughty.notify {
         title    = pos,
         position = pos,
-        text     = "",
+        message  = "",
     }
 end
 
