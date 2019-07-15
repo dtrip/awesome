@@ -304,8 +304,8 @@ end
 
 --- Does the given cairo context have an empty clip (aka "no drawing possible")?
 local function empty_clip(cr)
-    local _, _, width, height = cr:clip_extents()
-    return width == 0 or height == 0
+    local x1, y1, x2, y2 = cr:clip_extents()
+    return x2 - x1 == 0 or y2 - y1 == 0
 end
 
 --- Draw a hierarchy to some cairo context.
@@ -350,6 +350,8 @@ function hierarchy:draw(context, cr)
         cr:clip()
         call(widget.draw)
         cr:restore()
+        -- Clear any path that the widget might have left
+        cr:new_path()
 
         -- Draw its children (We already clipped to the draw extents above)
         call(widget.before_draw_children)
@@ -359,6 +361,8 @@ function hierarchy:draw(context, cr)
             call(widget.after_draw_child, i, wi:get_widget())
         end
         call(widget.after_draw_children)
+        -- Clear any path that the widget might have left
+        cr:new_path()
 
         -- Apply opacity
         if opacity ~= 1 then
