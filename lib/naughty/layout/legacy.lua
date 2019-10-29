@@ -31,7 +31,6 @@ local screen    = require("awful.screen")
 local button    = require("awful.button")
 local beautiful = require("beautiful")
 local surface   = require("gears.surface")
-local gtable    = require("gears.table")
 local wibox     = require("wibox")
 local gfs       = require("gears.filesystem")
 local timer     = require("gears.timer")
@@ -237,23 +236,39 @@ local function set_escaped_text(self)
     if not self.box then return end
 
     local text = self.message or ""
-    local title = self.title and self.title .. "\n" or ""
-
+    local title = self.title or ""
     local textbox = self.textbox
 
     local function set_markup(pattern, replacements)
-        return textbox:set_markup_silently(string.format('<b>%s</b>%s', title, text:gsub(pattern, replacements)))
+        local parts = {}
+        if title ~= "" then
+            table.insert(parts, "<b>" .. title .. "</b>")
+        end
+        if text ~= "" then
+            local markup = text:gsub(pattern, replacements)
+            if markup ~= "" then
+                table.insert(parts, markup)
+            end
+        end
+        return textbox:set_markup_silently(table.concat(parts, "\n"))
     end
 
     local function set_text()
-        textbox:set_text(string.format('%s %s', title, text))
+        local parts = {}
+        if title ~= "" then
+            table.insert(parts, title)
+        end
+        if text ~= "" then
+            table.insert(parts, text)
+        end
+        textbox:set_text(table.concat(parts, "\n"))
     end
 
     -- Since the title cannot contain markup, it must be escaped first so that
     -- it is not interpreted by Pango later.
     title = title:gsub(escape_pattern, escape_subs)
     -- Try to set the text while only interpreting <br>.
-    if not set_markup("<br.->", "\n") then
+    if not set_markup("<br.*>", "\n") then
         -- That failed, escape everything which might cause an error from pango
         if not set_markup(escape_pattern, escape_subs) then
             -- Ok, just ignore all pango markup. If this fails, we got some invalid utf8
@@ -430,14 +445,11 @@ function naughty.default_notification_handler(notification, args)
             local action_height = h + 2 * margin
             local action_width = w + 2 * margin
 
-            actionmarginbox:buttons(gtable.join(
-                button({ }, 1, function()
-                    action:invoke(notification)
-                end),
-                button({ }, 3, function()
-                    action:invoke(notification)
-                end)
-            ))
+            actionmarginbox.buttons = {
+                button({ }, 1, function() action:invoke(notification) end),
+                button({ }, 3, function() action:invoke(notification) end),
+            }
+
             actionslayout:add(actionmarginbox)
 
             actions_total_height = actions_total_height + action_height
@@ -568,10 +580,12 @@ function naughty.default_notification_handler(notification, args)
     notification.box:set_widget(completelayout)
 
     -- Setup the mouse events
-    layout:buttons(gtable.join(button({}, 1, nil, run),
-                                   button({}, 3, nil, function()
-                                        die(naughty.notification_closed_reason.dismissed_by_user)
-                                    end)))
+    layout.buttons = {
+        button({}, 1, nil, run),
+        button({}, 3, nil, function()
+            die(naughty.notification_closed_reason.dismissed_by_user)
+        end),
+    }
 
     -- insert the notification to the table
     table.insert(current_notifications[s][notification.position], notification)

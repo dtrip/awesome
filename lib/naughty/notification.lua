@@ -419,7 +419,7 @@ local notification = {}
 --- The application name specified by the notification.
 --
 -- This can be anything. It is usually less relevant than the `clients`
--- property, but can sometime to specified for remote or headless notifications.
+-- property, but can sometime be specified for remote or headless notifications.
 -- In these case, it helps to triage and detect the notification from the rules.
 -- @property app_name
 -- @param string
@@ -467,7 +467,7 @@ function notification:reset_timeout(new_timeout)
     -- Do not set `self.timeout` to `self.timeout` since that would create the
     -- timer before the constructor ends.
     if new_timeout and self.timer then
-        self.timeout = new_timeout or self.timeout
+        self.timeout = new_timeout
     end
 
     if self.timer and not self.timer.started then

@@ -99,10 +99,10 @@ kind_names={topic='Documentation', module='Libraries', script='Sample files'}
 sort_modules=true
 
 -- Add more project level (left side index) types.
+new_type("coreclassmod", "Core_components"  , true)
 new_type("widgetmod"   , "Widgets"   , true)
 new_type("containermod", "Widget_containers", true)
 new_type("layoutmod"   , "Widget_layouts"   , true)
-new_type("coreclassmod", "Core_components"  , true)
 new_type("popupmod"    , "Popups_and_bars"  , true)
 new_type("utillib"     , "Utility_libraries", true)
 new_type("themelib"    , "Theme_related_libraries", true)
@@ -118,10 +118,8 @@ file = {
     '../spawn.c',
     '../xkb.c',
     '../common/luaobject.c',
-    '../objects/button.c',
     '../objects/client.c',
     '../objects/drawable.c',
-    '../objects/key.c',
     '../objects/screen.c',
     '../objects/tag.c',
     '../objects/window.c',
@@ -135,8 +133,10 @@ file = {
         -- documentation
         '../lib/awful/autofocus.lua',
         '../lib/awful/dbus.lua',
+        '../lib/awful/_compat.lua',
         '../lib/awful/init.lua',
         '../lib/awful/remote.lua',
+        '../lib/awful/screen/dpi.lua',
         '../lib/awful/startup_notification.lua',
         '../lib/awful/mouse/drag_to_tag.lua',
         '../lib/gears/init.lua',
@@ -153,6 +153,11 @@ file = {
         '../lib/naughty/container/init.lua',
         '../lib/naughty/list/init.lua',
         '../lib/naughty/widget/_default.lua',
+
+        -- Ignore components that provide no value to users and have confusing
+        -- names
+        '../objects/button.c',
+        '../objects/key.c',
 
         -- Deprecated classes for one years or more don't deserve entries
         -- in the index
@@ -177,10 +182,25 @@ local function wrap_modname(str, item)
         .. str:sub(#item.module.name+2, 9999)
 end
 
+local named_args = {
+    [ "(args)"       ] = true,
+    [ "([args])"     ] = true,
+    [ "([args=nil])" ] = true,
+    [ "([args={}])"  ] = true
+}
+
 -- Wrap the arguments for the CSS highlight.
 local function wrap_args(item)
     if not item.args then return "" end
-    return "<span class='function_args'>"..item.args.."</span>"
+
+    -- Display named args with `{}` and ordered args with `()`
+    if named_args[item.args] then
+        return "<span class='function_named_args'><b>{</b>[args]<b>}</b></span>"
+    end
+
+    local new_args = item.args:sub(2, item.args:len()-1)
+
+    return "<span class='function_args'> <b>(</b>"..new_args.."<b>)</b></span>"
 end
 
 

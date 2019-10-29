@@ -91,14 +91,15 @@ end
 -- success/failure, but can also return nothing if it needs to be called again
 -- later.
 function runner.run_steps(steps, options)
+    options = gtable.crush({
+        kill_clients=true,
+        wait_per_step=2,  -- how long to wait per step in seconds.
+    }, options or {})
     -- Setup timer/timeout to limit waiting for signal and quitting awesome.
     local t = timer({timeout=0})
-    local wait=20
+    local wait=options.wait_per_step / 0.1
     local step=1
     local step_count=0
-    options = options or {
-        kill_clients=true,
-    }
     runner.run_direct()
 
     if options.kill_clients then
@@ -108,14 +109,16 @@ function runner.run_steps(steps, options)
     end
 
     t:connect_signal("timeout", function() timer.delayed_call(function()
-        io.flush()  -- for "tail -f".
+        local step_func = steps[step]
         step_count = step_count + 1
         local step_as_string = step..'/'..#steps..' (@'..step_count..')'
+
+        io.flush()  -- for "tail -f".
         runner.verbose(string.format('Running step %s..\n', step_as_string))
 
         -- Call the current step's function.
         local success, result = xpcall(function()
-            return steps[step](step_count)
+            return step_func(step_count)
         end, debug.traceback)
 
         if not success then
@@ -128,25 +131,32 @@ function runner.run_steps(steps, options)
                 -- Next step.
                 step = step+1
                 step_count = 0
-                wait = 20
+                wait = options.wait_per_step / 0.1
                 t.timeout = 0
                 t:again()
             else
                 -- All steps finished, we are done.
                 runner.done()
             end
-        elseif result == false then
-            runner.done("Step "..step_as_string.." failed (returned false).")
         else
-            -- No result yet, run this step again.
-            wait = wait-1
-            if wait > 0 then
-                t.timeout = 0.1
-                t:again()
+            -- Append filename/lnum of failed step function.
+            local step_info = debug.getinfo(step_func)
+            local step_loc = string.format("%s:%d", step_info["short_src"], step_info["linedefined"])
+            step_as_string = step_as_string .. " ("..step_loc..")"
+
+            if result == false then
+                runner.done("Step "..step_as_string.." failed (returned false).")
             else
-                runner.done("timeout waiting for signal in step "
-                            ..step_as_string..".")
-                t:stop()
+                -- No result yet, run this step again.
+                wait = wait-1
+                if wait > 0 then
+                    t.timeout = 0.1
+                    t:again()
+                else
+                    runner.done("timeout waiting for signal in step "
+                                ..step_as_string..".")
+                    t:stop()
+                end
             end
         end
     end) end)

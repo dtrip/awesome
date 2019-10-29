@@ -82,6 +82,8 @@
  * To get all the clients for a screen use either `screen.clients` or
  * `screen.tiled_clients`.
  *
+ * @DOC_uml_nav_tables_client_EXAMPLE@
+ *
  * @author Julien Danjou &lt;julien@danjou.info&gt;
  * @copyright 2008-2009 Julien Danjou
  * @coreclassmod client
@@ -129,7 +131,22 @@
  * it is only useful when setting or getting these properties require code to
  * executed.
  *
- * @table awful.object
+ * @table awful.client.object
+ */
+
+/** AwesomeWM is about to scan for existing clients.
+ *
+ * Connect to this signal when code needs to be executed after screens are
+ * initialized, but before clients are added.
+ *
+ * @signal scanning
+ */
+
+/** AwesomeWM is done scanning for clients.
+ *
+ * This is emitted before the `startup` signal and after the `scanning` signal.
+ *
+ * @signal scanned
  */
 
 /** When a client gains focus.
@@ -578,6 +595,8 @@
 /**
  * The client is fullscreen or not.
  *
+ * @DOC_sequences_client_fullscreen_EXAMPLE@
+ *
  * **Signal:**
  *
  *  * *property::fullscreen*
@@ -588,6 +607,8 @@
 
 /**
  * The client is maximized (horizontally and vertically) or not.
+ *
+ * @DOC_sequences_client_maximized_EXAMPLE@
  *
  * **Signal:**
  *
@@ -600,6 +621,8 @@
 /**
  * The client is maximized horizontally or not.
  *
+ * @DOC_sequences_client_maximized_horizontal_EXAMPLE@
+ *
  * **Signal:**
  *
  *  * *property::maximized\_horizontal*
@@ -610,6 +633,8 @@
 
 /**
  * The client is maximized vertically or not.
+ *
+ * @DOC_sequences_client_maximized_vertical_EXAMPLE@
  *
  * **Signal:**
  *
@@ -924,9 +949,9 @@
 
 /** Get or set mouse buttons bindings for a client.
  *
- * @param buttons_table An array of mouse button bindings objects, or nothing.
- * @return A table with all buttons.
- * @method buttons
+ * @property buttons
+ * @param table
+ * @see awful.button
  */
 
 /** Get the number of instances.
@@ -1037,6 +1062,20 @@ DO_CLIENT_SET_STRING_PROPERTY(startup_id)
 DO_CLIENT_SET_STRING_PROPERTY(role)
 DO_CLIENT_SET_STRING_PROPERTY(machine)
 #undef DO_CLIENT_SET_STRING_PROPERTY
+
+void
+client_emit_scanned(void)
+{
+    lua_State *L = globalconf_get_lua_State();
+    luaA_class_emit_signal(L, &client_class, "scanned", 0);
+}
+
+void
+client_emit_scanning(void)
+{
+    lua_State *L = globalconf_get_lua_State();
+    luaA_class_emit_signal(L, &client_class, "scanning", 0);
+}
 
 void
 client_set_motif_wm_hints(lua_State *L, int cidx, motif_wm_hints_t hints)
@@ -3638,9 +3677,9 @@ luaA_client_set_shape_input(lua_State *L, client_t *c)
 
 /** Get or set keys bindings for a client.
  *
- * @param keys_table An array of key bindings objects, or nothing.
- * @return A table with all keys.
- * @method keys
+ * @property keys
+ * @param table
+ * @see awful.key
  */
 static int
 luaA_client_keys(lua_State *L)
@@ -3774,7 +3813,7 @@ client_class_setup(lua_State *L)
     {
         LUA_OBJECT_META(client)
         LUA_CLASS_META
-        { "keys", luaA_client_keys },
+        { "_keys", luaA_client_keys },
         { "isvisible", luaA_client_isvisible },
         { "geometry", luaA_client_geometry },
         { "apply_size_hints", luaA_client_apply_size_hints },
