@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------
---- Taglist widget module for awful
+--- Taglist widget module for awful.
 --
 -- Here is a more advanced example of how to extent the `taglist`. It provides:
 --
@@ -527,6 +527,13 @@ function taglist.new(args, filter, buttons, style, update_function, base_widget)
             if i then
                 for _, tlist in pairs(i) do
                     tlist._do_taglist_update()
+                end
+            else
+                -- No screen? Update all taglists
+                for _, list in pairs(instances) do
+                    for _, tlist in pairs(list) do
+                        tlist._do_taglist_update()
+                    end
                 end
             end
         end

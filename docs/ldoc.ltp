@@ -9,6 +9,17 @@
 # if ldoc.custom_css then -- add custom CSS file if configured.
     <link rel="stylesheet" href="$(ldoc.custom_css)" type="text/css" />
 # end
+   <script>
+     function show_extra(id) {
+        var cur = document.getElementById("item"+id).className
+
+        if (cur == "hide_extra") {
+            document.getElementById("item"+id).className = "show_more"
+            document.getElementById("button"+id).className = "hide_extra"
+        }
+     }
+   </script>
+
 </head>
 <body>
 
@@ -150,7 +161,12 @@
 #   else
       <td class="name" $(nowrap)><a href="#$(item.name)">$(dn)</a></td>
 #   end
-      <td class="summary">$(M(item.summary,item))</td>
+      <td colspan="$(item.inherited and 1 or 2)" class="summary">$(M(item.summary,item))</td>
+#   if item.inherited then
+      <td class="baseclass" $(nowrap)>
+        Inherited from $(item.baseclass)
+      </td>
+#   end
     </tr>
 #  end -- for items
 # last_kind = kind
@@ -194,30 +210,31 @@
     <dt>
     <a name = "$(item.name)"></a>
     <strong>$(display_name(item))</strong>
+#   if item.display_inheritance then
+    <span class="inheritance">
+      &middot Inherited from
+      <a href="$(item.display_inheritance)">$(item.display_inheritance)</a>
+    </span>
+#   end -- display_inheritance
 #   if item.display_type then
     <span class="proptype">($(item.display_type))</span>
 #   end
+    <span class="baseclass" $(nowrap)>
+#   if item.inherited then
+    &middot;&nbsp;Inherited from $(item.baseclass)
+#   end
+#   if item.extra_summary then
+#       for _, col in ldoc.ipairs(item.extra_summary) do
+         &middot $(col.count.." "..col.title)
+#       end -- summary col
+#   end -- summary
+    </span>
 #   if ldoc.prettify_files and ldoc.is_file_prettified[item.module.file.filename] then
     <a style="float:right;" href="$(ldoc.source_ref(item))">line $(item.lineno)</a>
 #  end
     </dt>
     <dd>
     $(M(ldoc.descript(item),item))
-
-#   if ldoc.custom_tags then
-#    for custom in iter(ldoc.custom_tags) do
-#     local tag = item.tags[custom[1]]
-#     if tag and not custom.hidden then
-#      local li,il = use_li(tag)
-    <h3>$(custom.title or custom[1]):</h3>
-    <ul>
-#      for value in iter(tag) do
-         $(li)$(custom.format and custom.format(value) or M(value))$(il)
-#      end -- for
-#     end -- if tag
-    </ul>
-#    end -- iter tags
-#   end
 
 #  if show_parms and item.params and #item.params > 0 and not item.hide_params then
 #    local subnames = module.kinds:type_of(item).subnames
@@ -306,6 +323,47 @@
 #     end -- for
     </ul>
 #   end -- if usage
+
+#   if item.extra_summary then
+     <br />
+     <center id=button$(item.uid)>
+     <a class="show_more_button" onclick="show_extra('$(item.uid)')">
+      Click to display more
+     </a>
+     </center>
+#   end
+
+    <span id=item$(item.uid) class="hide_extra">
+#    if ldoc.custom_tags then
+#     for custom in iter(ldoc.custom_tags) do
+#      local tag = item.tags[custom[1]]
+#      if tag and not custom.hidden then
+#       local group_begin, group_end, row_type_begin, row_type_end, group_header = item.get_delim(custom[1])
+     <h3>$(custom.title or custom[1]):</h3>
+     <$(group_begin)>
+#       if group_header then
+         <tr style='font-weight: bold;'>
+#        for _, g in ldoc.ipairs(group_header) do
+           <th>$(g)</th>
+#        end -- for g
+         </tr>
+#       end -- if group_header then
+#       for value in iter(tag) do
+          <$(row_type_begin)>$(custom.format and custom.format(value, item, M) or M(value))</$(row_type_end)>
+#         local sub_values, sub_custom = item.get_auto_params(custom[1], value)
+#         if sub_values then
+           <ul>
+#          for _, value in ldoc.ipairs(sub_values) do
+             <li>$(sub_custom.format(value, item, M))</li>
+#          end -- for auto_params
+           </ul>
+#         end -- if item.auto_params
+#       end -- for
+     </$(group_end)>
+#      end -- if tag
+#     end -- iter tags
+#    end -- ldoc.custom_tags
+    </span>
 
 </dd>
 # end -- for items

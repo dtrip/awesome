@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------
---- Screen module for awful
+--- Screen module for awful.
 --
 -- @author Julien Danjou &lt;julien@danjou.info&gt;
 -- @copyright 2008 Julien Danjou
@@ -482,6 +482,8 @@ end
 -- * fullscreen clients
 -- * maximized clients
 -- * floating clients
+--
+-- @DOC_screen_tiled_clients_EXAMPLE@
 --
 -- @property tiled_clients
 -- @param table The clients list, ordered from top to bottom.
