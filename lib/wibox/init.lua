@@ -41,6 +41,7 @@ local force_forward = {
 function wibox:set_widget(widget)
     local w = base.make_widget_from_value(widget)
     self._drawable:set_widget(w)
+    self:emit_signal("property::widget", widget)
 end
 
 function wibox:get_widget()
@@ -51,14 +52,17 @@ wibox.setup = base.widget.setup
 
 function wibox:set_bg(c)
     self._drawable:set_bg(c)
+    self:emit_signal("property::bg", c)
 end
 
 function wibox:set_bgimage(image, ...)
     self._drawable:set_bgimage(image, ...)
+    self:emit_signal("property::bgimage", ...)
 end
 
 function wibox:set_fg(c)
     self._drawable:set_fg(c)
+    self:emit_signal("property::fg", c)
 end
 
 function wibox:find_widgets(x, y)
@@ -149,6 +153,7 @@ end
 function wibox:set_shape(shape)
     self._shape = shape
     self:_apply_shape()
+    self:emit_signal("property::shape", shape)
 end
 
 function wibox:get_shape()
@@ -199,6 +204,7 @@ function wibox:set_screen(s)
     -- (x,y) is not enough to figure out the correct screen.
     self.screen_assigned = s
     self._drawable:_force_screen(s)
+    self:emit_signal("property::screen", s)
 end
 
 function wibox:get_children_by_id(name)
@@ -215,7 +221,20 @@ function wibox:get_children_by_id(name)
     return {}
 end
 
-for _, k in pairs{ "struts", "geometry", "get_xproperty", "set_xproperty" } do
+-- Proxy those properties to decorate their accessors with an extra flag to
+-- define when they are set by the user. This allows to "manage" the value of
+-- those properties internally until they are manually overridden.
+for _, prop in ipairs { "border_width", "border_color", "opacity" } do
+    wibox["get_"..prop] = function(self)
+        return self["_"..prop]
+    end
+    wibox["set_"..prop] = function(self, value)
+        self._private["_user_"..prop] = true
+        self["_"..prop] = value
+    end
+end
+
+for _, k in ipairs{ "struts", "geometry", "get_xproperty", "set_xproperty" } do
     wibox[k] = function(self, ...)
         return self.drawin[k](self.drawin, ...)
     end
@@ -354,6 +373,14 @@ local function new(args)
 
     if args.shape then
         ret.shape = args.shape
+    end
+
+    if args.border_width then
+        ret.border_width = args.border_width
+    end
+
+    if args.border_color then
+        ret.border_color = args.border_color
     end
 
     if args.input_passthrough then
