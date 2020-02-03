@@ -44,14 +44,6 @@ topics={
     '89-NEWS.md',
 }
 
--- Setup @client to be an alias for "@tparam client.object"
-tparam_alias('client', 'client.object')
-tparam_alias('tag', 'tag')
--- Should be default, but is not.  Sets up "@tab" => "@tparam table".
-tparam_alias('tab', 'table')
-tparam_alias('screen', 'screen')
-tparam_alias('screen_or_idx', 'screen|int')
-
 -- The first stereotype are the constructors.
 new_type("constructorfct", "Constructors", false, "Parameters")
 new_type("constructorfct2", "ldoc_skip", false, "Parameters")
@@ -70,6 +62,8 @@ new_type("deprecatedproperty", "Deprecated object properties", false, "Type cons
 new_type("method", "Object methods ", false, "Parameters")
 -- New type for signals
 new_type("signal", "Signals", false, "Arguments")
+-- Deprecated signals.
+new_type("deprecatedsignal", "Deprecated signals", false, "Arguments")
 -- New type for signals connections
 new_type("signalhandler", "Request handlers", false, "Arguments")
 -- Allow objects to define a set of beautiful properties affecting them
@@ -91,7 +85,9 @@ new_type("rulecomponent", "Rule components", false, "Type")
 -- Filter functions for the taglist/tasklist/layoutlist
 new_type("filterfunction", "List filters", false)
 -- Extra client properties available only in awful.rules/spawn constructs
-new_type("clientruleproperty", "Extra properties available in awful.rules and awful.spawn", false, "Type")
+new_type("clientruleproperty", "Extra properties available in the rules", false, "Type")
+-- Extra *matching* properties for rules.
+new_type("matchingproperty", "Extra matching properties used in rules", false, "Type")
 
 -- Simulate the default "params" parser format, except the optional "[]" section
 -- needs a space.
@@ -351,6 +347,12 @@ add_custom_tag {
     hidden = true
 }
 
+-- Define when a signal is only emitted on a class rather than on objects.
+add_custom_tag {
+    name   = "classsignal",
+    hidden = true,
+}
+
 -- Specify when this an item was deprecated.
 -- @deprecatedin 4.4 Optional message.
 add_custom_tag {
@@ -394,6 +396,20 @@ add_custom_tag {
     },
 }
 
+add_custom_tag {
+    name   = "request",
+    title  = "Requested actions or permissions",
+    params = {
+        { name = "class"   },
+        { name = "type"    },
+        { name = "context" },
+        { name = "default" },
+    },
+    table  = {
+        "Class", "Permission", "Context", "Default", "Description"
+    },
+}
+
 -- More fitting section names
 kind_names={topic='Documentation', module='Libraries', script='Sample files'}
 
@@ -402,8 +418,9 @@ sort_modules=true
 
 -- Add more project level (left side index) types.
 new_type("coreclassmod", "Core_components"  , true)
-new_type("inputmodule" , "Input handling"   , true)
-new_type("widgetmod"   , "Widgets"   , true)
+new_type("inputmodule" , "Input_handling"   , true)
+new_type("ruleslib"    , "Declarative_rules", true)
+new_type("widgetmod"   , "Widgets"          , true)
 new_type("containermod", "Widget_containers", true)
 new_type("layoutmod"   , "Widget_layouts"   , true)
 new_type("popupmod"    , "Popups_and_bars"  , true)
@@ -442,12 +459,14 @@ file = {
         '../lib/awful/screen/dpi.lua',
         '../lib/awful/startup_notification.lua',
         '../lib/awful/mouse/drag_to_tag.lua',
+        '../lib/awful/permissions/_common.lua',
         '../lib/gears/init.lua',
         '../lib/wibox/layout/init.lua',
         '../lib/wibox/container/init.lua',
         '../lib/naughty/constants.lua',
         '../lib/naughty/dbus.lua',
         '../lib/beautiful/gtk.lua',
+        '../lib/ruled/init.lua',
 
         -- Ignore some parts of the widget library
         '../lib/awful/widget/init.lua',
@@ -468,6 +487,7 @@ file = {
         '../lib/awful/widget/progressbar.lua',
         '../lib/awful/widget/textclock.lua',
         '../lib/awful/wibox.lua',
+        '../lib/awful/ewmh.lua',
         '../lib/wibox/layout/constraint.lua',
         '../lib/wibox/layout/margin.lua',
         '../lib/wibox/layout/mirror.lua',
@@ -494,15 +514,18 @@ local named_args = {
 
 -- Sections which are hidden by default, but visible when clicked.
 local summarize = {
-    emits         = {index = 1, title = "signals"        },
-    propemits     = {index = 2, title = "signals"        },
-    usebeautiful  = {index = 3, title = "theme variables"},
-    propbeautiful = {index = 4, title = "theme variables"}
+    emits         = {index = 1, title = "signal"          , count = true },
+    propemits     = {index = 2, title = "signal"          , count = true },
+    usebeautiful  = {index = 3, title = "theme variable"  , count = true },
+    propbeautiful = {index = 4, title = "theme variable"  , count = true },
+    request       = {index = 5, title = "permission"      , count = true },
+    classsignal   = {index = 6, title = "Class level only", count = false},
 }
 
 local delimiter_for_tag = {
     usebeautiful  = { "table class='widget_list' border=1", "table", "tr", "tr", {"Theme variable", "Usage"}},
     propbeautiful = { "table class='widget_list' border=1", "table", "tr", "tr", {"Theme variable", "Usage"}},
+    request       = { "table class='widget_list' border=1", "table", "tr", "tr", {"Class", "Permission", "Context", "Default", "Description"}},
 }
 
 -- Use the first word of the subtag content to map it to its tag.
@@ -523,24 +546,31 @@ local function generate_summary(item)
     local tgs = {}
 
     for k, v in pairs(summarize) do
-        tgs[v.index] = {title=v.title, count=0}
+        tgs[v.index] = {title=v.title, count=0, showcount=v.count}
     end
 
     for tag, value in pairs(item.tags) do
         if summarize[tag] then
-            tgs[summarize[tag].index].count = tgs[summarize[tag].index].count + 1
+            tgs[summarize[tag].index].count = #value
         end
     end
 
-    local ret = {}
+    local ret, has_show_more = {}, false
 
     for k, v in ipairs(tgs) do
         if v.count > 0 then
+
+            if v.count > 1 then
+                v.title = v.title .. "s"
+            end
+
             ret[#ret+1] = v
+            has_show_more = v.showcount or has_show_more
         end
     end
 
     item.extra_summary = #ret > 0 and ret or nil
+    item.has_show_more = has_show_more
 end
 
 -- We have custom types, sub-types and different rendering.
@@ -724,6 +754,9 @@ local display_type = {
     beautiful          = true,
     field              = true,
     deprecatedproperty = true,
+    clientruleproperty = true,
+    matchingproperty   = true,
+    rulecomponent      = true,
 }
 
 -- Show return values.
@@ -734,6 +767,13 @@ local show_return = {
     staticfct       = true,
     method          = true,
     deprecated      = true,
+}
+
+-- The different type of deprecation.
+local is_deprecated = {
+    deprecated         = true,
+    deprecatedproperty = true,
+    deprecatedsignal   = true,
 }
 
 custom_display_name_handler = function(item, default_handler)
@@ -776,7 +816,7 @@ custom_display_name_handler = function(item, default_handler)
         end
     end
 
-    if item.type == "deprecated" or item.type == "deprecatedproperty" then
+    if is_deprecated[item.type] then
         return ret .. "<i class=\"deprecated_label\"> [deprecated]</i>"
     end
 

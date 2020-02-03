@@ -13,6 +13,8 @@ local wibox = require("wibox")
 local beautiful = require("beautiful")
 -- Notification library
 local naughty = require("naughty")
+-- Declarative object management
+local ruled = require("ruled")
 local menubar = require("menubar")
 local hotkeys_popup = require("awful.hotkeys_popup")
 -- Enable hotkeys help widget for VIM and other apps
@@ -49,27 +51,6 @@ editor_cmd = terminal .. " -e " .. editor
 -- I suggest you to remap Mod4 to another key using xmodmap or other tools.
 -- However, you can use another modifier like Mod1, but it may interact with others.
 modkey = "Mod4"
-
--- @DOC_LAYOUT@
--- Table of layouts to cover with awful.layout.inc, order matters.
-awful.layout.layouts = {
-    awful.layout.suit.floating,
-    awful.layout.suit.tile,
-    awful.layout.suit.tile.left,
-    awful.layout.suit.tile.bottom,
-    awful.layout.suit.tile.top,
-    awful.layout.suit.fair,
-    awful.layout.suit.fair.horizontal,
-    awful.layout.suit.spiral,
-    awful.layout.suit.spiral.dwindle,
-    awful.layout.suit.max,
-    awful.layout.suit.max.fullscreen,
-    awful.layout.suit.magnifier,
-    awful.layout.suit.corner.nw,
-    -- awful.layout.suit.corner.ne,
-    -- awful.layout.suit.corner.sw,
-    -- awful.layout.suit.corner.se,
-}
 -- }}}
 
 -- {{{ Menu
@@ -95,10 +76,33 @@ mylauncher = awful.widget.launcher({ image = beautiful.awesome_icon,
 menubar.utils.terminal = terminal -- Set the terminal for applications that require it
 -- }}}
 
+-- {{{ Tag
+-- @DOC_LAYOUT@
+-- Table of layouts to cover with awful.layout.inc, order matters.
+tag.connect_signal("request::default_layouts", function()
+    awful.layout.append_default_layouts({
+        awful.layout.suit.floating,
+        awful.layout.suit.tile,
+        awful.layout.suit.tile.left,
+        awful.layout.suit.tile.bottom,
+        awful.layout.suit.tile.top,
+        awful.layout.suit.fair,
+        awful.layout.suit.fair.horizontal,
+        awful.layout.suit.spiral,
+        awful.layout.suit.spiral.dwindle,
+        awful.layout.suit.max,
+        awful.layout.suit.max.fullscreen,
+        awful.layout.suit.magnifier,
+        awful.layout.suit.corner.nw,
+    })
+end)
+-- }}}
+
+-- {{{ Wibar
+
 -- Keyboard map indicator and switcher
 mykeyboardlayout = awful.widget.keyboardlayout()
 
--- {{{ Wibar
 -- Create a textclock widget
 mytextclock = wibox.widget.textclock()
 
@@ -157,22 +161,15 @@ screen.connect_signal("request::desktop_decoration", function(s)
         }
     }
 
+    -- @TASKLIST_BUTTON@
     -- Create a tasklist widget
     s.mytasklist = awful.widget.tasklist {
         screen  = s,
         filter  = awful.widget.tasklist.filter.currenttags,
         buttons = {
             awful.button({ }, 1, function (c)
-                                     if c == client.focus then
-                                         c.minimized = true
-                                     else
-                                         c:emit_signal(
-                                             "request::activate",
-                                             "tasklist",
-                                             {raise = true}
-                                         )
-                                     end
-                                 end),
+                c:activate { context = "tasklist", action = "toggle_minimization" }
+            end),
             awful.button({ }, 3, function() awful.menu.client_list { theme = { width = 250 } } end),
             awful.button({ }, 4, function() awful.client.focus.byidx( 1) end),
             awful.button({ }, 5, function() awful.client.focus.byidx(-1) end),
@@ -286,9 +283,7 @@ awful.keyboard.append_global_keybindings({
                   local c = awful.client.restore()
                   -- Focus restored client
                   if c then
-                    c:emit_signal(
-                        "request::activate", "key.unminimize", {raise = true}
-                    )
+                    c:activate { raise = true, context = "key.unminimize" }
                   end
               end,
               {description = "restore minimized", group = "client"}),
@@ -383,15 +378,13 @@ awful.keyboard.append_global_keybindings({
 client.connect_signal("request::default_mousebindings", function()
     awful.mouse.append_client_mousebindings({
         awful.button({ }, 1, function (c)
-            c:emit_signal("request::activate", "mouse_click", {raise = true})
+            c:activate { context = "mouse_click" }
         end),
         awful.button({ modkey }, 1, function (c)
-            c:emit_signal("request::activate", "mouse_click", {raise = true})
-            awful.mouse.client.move(c)
+            c:activate { context = "mouse_click", action = "mouse_move"  }
         end),
         awful.button({ modkey }, 3, function (c)
-            c:emit_signal("request::activate", "mouse_click", {raise = true})
-            awful.mouse.client.resize(c)
+            c:activate { context = "mouse_click", action = "mouse_resize"}
         end),
     })
 end)
@@ -446,94 +439,75 @@ end)
 -- }}}
 
 -- {{{ Rules
--- Rules to apply to new clients (through the "manage" signal).
+-- Rules to apply to new clients.
 -- @DOC_RULES@
-awful.rules.rules = {
+ruled.client.connect_signal("request::rules", function()
     -- @DOC_GLOBAL_RULE@
     -- All clients will match this rule.
-    { rule = { },
-      properties = { border_width = beautiful.border_width,
-                     border_color = beautiful.border_normal,
-                     focus = awful.client.focus.filter,
-                     raise = true,
-                     screen = awful.screen.preferred,
-                     placement = awful.placement.no_overlap+awful.placement.no_offscreen
-     }
-    },
+    ruled.client.append_rule {
+        id         = "global",
+        rule       = { },
+        properties = {
+            focus     = awful.client.focus.filter,
+            raise     = true,
+            screen    = awful.screen.preferred,
+            placement = awful.placement.no_overlap+awful.placement.no_offscreen
+        }
+    }
 
     -- @DOC_FLOATING_RULE@
     -- Floating clients.
-    { rule_any = {
-        instance = {
-          "DTA",  -- Firefox addon DownThemAll.
-          "copyq",  -- Includes session name in class.
-          "pinentry",
+    ruled.client.append_rule {
+        id       = "floating",
+        rule_any = {
+            instance = { "copyq", "pinentry" },
+            class    = {
+                "Arandr", "Blueman-manager", "Gpick", "Kruler", "Sxiv",
+                "Tor Browser", "Wpa_gui", "veromix", "xtightvncviewer"
+            },
+            -- Note that the name property shown in xprop might be set slightly after creation of the client
+            -- and the name shown there might not match defined rules here.
+            name    = {
+                "Event Tester",  -- xev.
+            },
+            role    = {
+                "AlarmWindow",    -- Thunderbird's calendar.
+                "ConfigManager",  -- Thunderbird's about:config.
+                "pop-up",         -- e.g. Google Chrome's (detached) Developer Tools.
+            }
         },
-        class = {
-          "Arandr",
-          "Blueman-manager",
-          "Gpick",
-          "Kruler",
-          "MessageWin",  -- kalarm.
-          "Sxiv",
-          "Tor Browser", -- Needs a fixed window size to avoid fingerprinting by screen size.
-          "Wpa_gui",
-          "veromix",
-          "xtightvncviewer"},
-
-        -- Note that the name property shown in xprop might be set slightly after creation of the client
-        -- and the name shown there might not match defined rules here.
-        name = {
-          "Event Tester",  -- xev.
-        },
-        role = {
-          "AlarmWindow",  -- Thunderbird's calendar.
-          "ConfigManager",  -- Thunderbird's about:config.
-          "pop-up",       -- e.g. Google Chrome's (detached) Developer Tools.
-        }
-      }, properties = { floating = true }},
+        properties = { floating = true }
+    }
 
     -- @DOC_DIALOG_RULE@
     -- Add titlebars to normal clients and dialogs
-    { rule_any = {type = { "normal", "dialog" }
-      -- @DOC_CSD_TITLEBARS@
-      }, properties = { titlebars_enabled = true }
-    },
+    ruled.client.append_rule {
+        -- @DOC_CSD_TITLEBARS@
+        id         = "titlebars",
+        rule_any   = { type = { "normal", "dialog" } },
+        properties = { titlebars_enabled = true      }
+    }
 
     -- Set Firefox to always map on the tag named "2" on screen 1.
-    -- { rule = { class = "Firefox" },
-    --   properties = { screen = 1, tag = "2" } },
-}
--- }}}
-
--- {{{ Signals
--- Signal function to execute when a new client appears.
--- @DOC_MANAGE_HOOK@
-client.connect_signal("manage", function (c)
-    -- Set the windows at the slave,
-    -- i.e. put it at the end of others instead of setting it master.
-    -- if not awesome.startup then awful.client.setslave(c) end
-
-    if awesome.startup
-      and not c.size_hints.user_position
-      and not c.size_hints.program_position then
-        -- Prevent clients from being unreachable after screen count changes.
-        awful.placement.no_offscreen(c)
-    end
+    -- ruled.client.append_rule {
+    --     rule       = { class = "Firefox"     },
+    --     properties = { screen = 1, tag = "2" }
+    -- }
 end)
 
+-- }}}
+
+-- {{{ Titlebars
 -- @DOC_TITLEBARS@
 -- Add a titlebar if titlebars_enabled is set to true in the rules.
 client.connect_signal("request::titlebars", function(c)
     -- buttons for the titlebar
     local buttons = {
         awful.button({ }, 1, function()
-            c:emit_signal("request::activate", "titlebar", {raise = true})
-            awful.mouse.client.move(c)
+            c:activate { context = "titlebar", action = "mouse_move"  }
         end),
         awful.button({ }, 3, function()
-            c:emit_signal("request::activate", "titlebar", {raise = true})
-            awful.mouse.client.resize(c)
+            c:activate { context = "titlebar", action = "mouse_resize"}
         end),
     }
 
@@ -562,13 +536,4 @@ client.connect_signal("request::titlebars", function(c)
         layout = wibox.layout.align.horizontal
     }
 end)
-
--- Enable sloppy focus, so that focus follows mouse.
-client.connect_signal("mouse::enter", function(c)
-    c:emit_signal("request::activate", "mouse_enter", {raise = false})
-end)
-
--- @DOC_BORDER@
-client.connect_signal("focus", function(c) c.border_color = beautiful.border_focus end)
-client.connect_signal("unfocus", function(c) c.border_color = beautiful.border_normal end)
 -- }}}

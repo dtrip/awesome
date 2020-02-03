@@ -32,6 +32,12 @@ local allowed_deps = {
         gears = true,
         lgi = true,
         wibox = true,
+
+        -- Necessary to lazy-load the deprecated modules.
+        ["awful.*"] = true,
+
+        -- For legacy reasons.
+        ruled = true
     },
     naughty = {
         awful = true,
@@ -46,6 +52,14 @@ local allowed_deps = {
         gears = true,
         lgi = true,
         wibox = true,
+    },
+    ruled = {
+        awful = true,
+        beautiful = true,
+        gears = true,
+        lgi = true,
+        wibox = true,
+        naughty = true,
     },
     -- TODO: Get rid of these
     ["gears.surface"]        = { ["wibox.hierarchy"] = true },

@@ -708,7 +708,7 @@ local function get_relative_regions(geo, mode, is_absolute)
     -- Detect various types of geometry table and (try) to get rid of the
     -- differences so the code below don't have to care anymore.
     if geo.drawin then
-        bw, dgeo = geo.drawin.border_width, geo.drawin:geometry()
+        bw, dgeo = geo.drawin._border_width, geo.drawin:geometry()
     elseif geo.drawable and geo.drawable.get_wibox then
         bw   = geo.drawable.get_wibox().border_width
         dgeo = geo.drawable.get_wibox():geometry()
@@ -849,7 +849,7 @@ end
 
 --- Place the client so no part of it will be outside the screen (workarea).
 --@DOC_awful_placement_no_offscreen_EXAMPLE@
--- @client c The client.
+-- @tparam client c The client.
 -- @tparam[opt={}] table args The arguments
 -- @tparam[opt=client's screen] integer args.screen The screen.
 -- @treturn table The new client geometry.

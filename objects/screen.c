@@ -115,6 +115,8 @@
 /**
  * This signal is emitted when a screen is removed from the setup.
  * @signal removed
+ * @request tag screen removed granted When a screen is removed, `request::screen`
+ *  is called on all screen tags to try to relocate them.
  */
 
 /** This signal is emitted when the list of available screens changes.
@@ -1801,7 +1803,7 @@ luaA_screen_fake_resize(lua_State *L)
  *
  * @DOC_sequences_screen_swap_EXAMPLE@
  *
- * @client s A screen to swap with.
+ * @tparam client s A screen to swap with.
  * @method swap
  */
 static int

@@ -18,7 +18,7 @@
 -- The wibox visibility can be changed calling the `toggle` method.
 -- The `attach` method adds mouse bindings to an existing widget in order to toggle the display of the wibox.
 --
---@DOC_wibox_awidget_defaults_calendar_popup_EXAMPLE@
+--@DOC_awful_widget_calendar_popup_default_EXAMPLE@
 --
 -- @author getzze
 -- @copyright 2017 getzze
@@ -131,7 +131,7 @@ local function parse_cell_options(cell, args)
         elseif prop == 'border_width' then
             default = beautiful.border_width or 0
         elseif prop == 'border_color' then
-            default = beautiful.border_normal or beautiful.fg_normal
+            default = beautiful.border_color_normal or beautiful.fg_normal
         end
 
         -- Get default

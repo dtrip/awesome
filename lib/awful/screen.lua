@@ -88,7 +88,9 @@ end
 -- This moves the mouse pointer to the last known position on the new screen,
 -- or keeps its position relative to the current focused screen.
 -- @staticfct awful.screen.focus
--- @screen _screen Screen number (defaults / falls back to mouse.screen).
+-- @tparam screen _screen Screen number (defaults / falls back to mouse.screen).
+-- @request client activate screen.focus granted The most recent focused client
+--  for this screen should be re-activated.
 function screen.focus(_screen)
     client = client or require("awful.client")
     if type(_screen) == "number" and _screen > capi.screen.count() then _screen = screen.focused() end
@@ -359,9 +361,9 @@ end
 -- @tparam[opt] int|table args.margins Apply some margins on the output.
 --   This can either be a number or a table with *left*, *right*, *top*
 --   and *bottom* keys.
--- @tag[opt] args.tag Use this tag's screen.
+-- @tparam[opt] tag args.tag Use this tag's screen.
 -- @tparam[opt] drawable args.parent A parent drawable to use as base geometry.
--- @tab[opt] args.bounding_rect A bounding rectangle. This parameter is
+-- @tparam[opt] table args.bounding_rect A bounding rectangle. This parameter is
 --   incompatible with `honor_workarea`.
 -- @treturn table A table with *x*, *y*, *width* and *height*.
 -- @usage local geo = screen:get_bounding_geometry {
@@ -514,7 +516,7 @@ end
 --
 -- @staticfct awful.screen.connect_for_each_screen
 -- @tparam function func The function to call.
--- @screen func.screen The screen.
+-- @tparam screen func.screen The screen.
 function screen.connect_for_each_screen(func)
     for s in capi.screen do
         func(s)
@@ -771,7 +773,9 @@ end
 -- The only default implementation is the one provided by `rc.lua`.
 --
 -- @signal request::desktop_decoration
--- @tparam screen s The screen object.
+-- @tparam string context The context.
+-- @request screen wallpaper added granted When the decorations needs to be
+--  added to a new screen.
 
 --- Emitted when a new screen needs a wallpaper.
 --
@@ -782,7 +786,13 @@ end
 -- The only default implementation is the one provided by `rc.lua`.
 --
 -- @signal request::wallpaper
--- @tparam screen s The screen object.
+-- @tparam string context The context.
+-- @request screen wallpaper added granted When the wallpaper needs to be
+--  added to a new screen.
+-- @request screen wallpaper geometry granted When the wallpaper needs to be
+--  updated because the resolution changed.
+-- @request screen wallpaper dpi granted When the wallpaper needs to be
+--  updated because the DPI changed.
 
 --- When a new (physical) screen area has been added.
 --
@@ -965,15 +975,15 @@ capi.screen.connect_signal("_added", function(s)
     -- metadata. Thus, the DPI may be wrong when setting the wallpaper.
     if s._managed ~= "Lua" then
         s:emit_signal("added")
-        s:emit_signal("request::desktop_decoration")
-        s:emit_signal("request::wallpaper")
+        s:emit_signal("request::desktop_decoration", "added")
+        s:emit_signal("request::wallpaper", "added")
     end
 end)
 
 -- Resize the wallpaper(s)
 for _, prop in ipairs {"geometry", "dpi" } do
     capi.screen.connect_signal("property::"..prop, function(s)
-        s:emit_signal("request::wallpaper")
+        s:emit_signal("request::wallpaper", prop)
     end)
 end
 
