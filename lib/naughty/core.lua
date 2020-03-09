@@ -102,6 +102,8 @@ gtable.crush(naughty, require("naughty.constants"))
 --
 -- @property suspended
 -- @param boolean
+-- @emits added
+-- @propemits true false
 
 --- Do not allow notifications to auto-expire.
 --
@@ -111,6 +113,7 @@ gtable.crush(naughty, require("naughty.constants"))
 --
 -- @property expiration_paused
 -- @param[opt=false] boolean
+-- @propemits true false
 
 --- A table with all active notifications.
 --
@@ -122,6 +125,7 @@ gtable.crush(naughty, require("naughty.constants"))
 --
 -- @property active
 -- @param table
+-- @propemits false false
 
 --- True when there is a handler connected to `request::display`.
 -- @property has_display_handler
@@ -134,6 +138,7 @@ gtable.crush(naughty, require("naughty.constants"))
 --
 -- @property auto_reset_timeout
 -- @tparam[opt=true] boolean auto_reset_timeout
+-- @propemits true false
 
 --- Enable or disable naughty ability to claim to support animations.
 --
@@ -143,6 +148,7 @@ gtable.crush(naughty, require("naughty.constants"))
 --
 -- @property image_animations_enabled
 -- @param[opt=false] boolean
+-- @propemits true false
 
 --- Enable or disable the persistent notifications.
 --
@@ -158,6 +164,7 @@ gtable.crush(naughty, require("naughty.constants"))
 --
 -- @property persistence_enabled
 -- @param[opt=false] boolean
+-- @propemits true false
 
 local properties = {
     suspended                = false,
@@ -196,6 +203,16 @@ screen.connect_for_each_screen(function(s)
 end)
 
 capi.screen.connect_signal("removed", function(scr)
+    -- Allow the notifications to be moved to another screen.
+
+    for _, list in pairs(naughty.notifications[scr]) do
+        -- Clone the list to avoid having an iterator while mutating.
+        list = gtable.clone(list, false)
+
+        for _, n in ipairs(list) do
+            naughty.emit_signal("request::screen", n, "removed", {})
+        end
+    end
     -- Destroy all notifications on this screen
     naughty.destroy_all_notifications({scr})
     naughty.notifications[scr] = nil
@@ -210,6 +227,7 @@ local function remove_from_index(n)
         for _, ns in pairs(positions) do
             for k, n2 in ipairs(ns) do
                 if n2 == n then
+                    assert(ns[k+1] ~= n, "The notification index is corrupted")
                     table.remove(ns, k)
                     return
                 end
@@ -220,6 +238,11 @@ end
 
 -- When id or screen are set after the object is created, update the indexing.
 local function update_index(n)
+    -- Do things in the right order.
+    if not n._private.registered then return end
+
+    assert(not n._private.is_destroyed, "The notification index is corrupted")
+
     -- Find the only index and remove it (there's an useless loop, but it's small).
     remove_from_index(n)
 
@@ -230,7 +253,6 @@ local function update_index(n)
     naughty.notifications[s] = naughty.notifications[s] or {}
     table.insert(naughty.notifications[s][n.position], n)
 end
-
 
 --- Notification state.
 --
@@ -254,32 +276,6 @@ end
 
 local conns = gobject._setup_class_signals(naughty)
 
---- Connect a global signal on the notification engine.
---
--- Functions connected to this signal source will be executed when any
--- notification object emits the signal.
---
--- It is also used for some generic notification signals such as
--- `request::display`.
---
--- @tparam string name The name of the signal
--- @tparam function func The function to attach
--- @staticfct naughty.connect_signal
--- @usage naughty.connect_signal("added", function(notif)
---    -- do something
--- end)
-
---- Emit a notification signal.
--- @tparam string name The signal name.
--- @param ... The signal callback arguments
--- @staticfct naughty.emit_signal
-
---- Disconnect a signal from a source.
--- @tparam string name The name of the signal
--- @tparam function func The attached function
--- @staticfct naughty.disconnect_signal
--- @treturn boolean If the disconnection was successful
-
 local function resume()
     properties.suspended = false
     for _, v in pairs(naughty.notifications.suspended) do
@@ -288,7 +284,7 @@ local function resume()
         v._private.args = nil
 
         naughty.emit_signal("added", v, args)
-        naughty.emit_signal("request::display", v, args)
+        naughty.emit_signal("request::display", v, "resume", args)
         if v.timer then v.timer:start() end
     end
     naughty.notifications.suspended = { }
@@ -357,6 +353,9 @@ function naughty.destroy_all_notifications(screens, reason)
     for _, scr in pairs(screens) do
         for _, list in pairs(naughty.notifications[scr]) do
             while #list > 0 do
+                -- Better cause an error than risk an infinite loop.
+                assert(not list[1]._private.is_destroyed)
+
                 ret = ret and list[1]:destroy(reason)
             end
         end
@@ -404,6 +403,10 @@ end
 -- Presets are "deprecated" when notification rules are used.
 function naughty.get__has_preset_handler()
     return conns["request::preset"] and #conns["request::preset"] > 0 or false
+end
+
+function naughty._reset_display_handlers()
+    conns["request::display"] = nil
 end
 
 --- Set new notification timeout.
@@ -500,6 +503,20 @@ function naughty.set_expiration_paused(p)
     end
 end
 
+--- The default handler for `request::screen`.
+--
+-- It selects `awful.screen.focused()`.
+--
+-- @signalhandler naughty.default_screen_handler
+
+function naughty.default_screen_handler(n)
+    if n.screen and n.screen.valid then return end
+
+    n.screen = screen.focused()
+end
+
+naughty.connect_signal("request::screen", naughty.default_screen_handler)
+
 --- Emitted when an error occurred and requires attention.
 -- @signal request::display_error
 -- @tparam string message The error message.
@@ -523,6 +540,7 @@ end
 --    end)
 --
 -- @tparam table notification The `naughty.notification` object.
+-- @tparam string context Why is the signal sent.
 -- @tparam table args Any arguments passed to the `naughty.notify` function,
 --  including, but not limited to, all `naughty.notification` properties.
 -- @signal request::display
@@ -530,6 +548,7 @@ end
 --- Emitted when a notification needs pre-display configuration.
 --
 -- @tparam table notification The `naughty.notification` object.
+-- @tparam string context Why is the signal sent.
 -- @tparam table args Any arguments passed to the `naughty.notify` function,
 --  including, but not limited to, all `naughty.notification` properties.
 -- @signal request::preset
@@ -546,21 +565,36 @@ end
 -- @tparam naughty.action action The action.
 -- @tparam string icon_name The icon name.
 
+--- Emitted when the screen is not defined or being removed.
+-- @signal request::screen
+-- @tparam table notification The `naughty.notification` object. This is
+--  currently either "new" or "removed".
+-- @tparam string context Why is the signal sent.
+
 -- Register a new notification object.
 local function register(notification, args)
+    assert(not notification._private.registered)
+
     -- Add the some more properties
     rawset(notification, "get_suspended", get_suspended)
 
-    --TODO v5 uncouple the notifications and the screen
-    local s = get_screen(args.screen
-        or (notification.preset and notification.preset.screen)
-        or screen.focused())
+    local s = get_screen(notification.screen or args.screen
+        or (notification.preset and notification.preset.screen))
+
+    if not s then
+        naughty.emit_signal("request::screen", notification, "new", {})
+        s = notification.screen
+    end
+
+    assert(s)
 
     -- insert the notification to the table
     table.insert(naughty._active, notification)
     table.insert(naughty.notifications[s][notification.position], notification)
     notification.idx    = #naughty.notifications[s][notification.position]
     notification.screen = s
+
+    notification._private.registered = true
 
     if properties.suspended and not args.ignore_suspend then
         notification._private.args = args
@@ -599,7 +633,7 @@ local function set_index_miss(_, key, value)
             resume()
         end
 
-        naughty.emit_signal("property::"..key)
+        naughty.emit_signal("property::"..key, value)
     else
         rawset(naughty, key, value)
     end
@@ -682,6 +716,8 @@ end
 
 naughty.connect_signal("property::screen"  , update_index)
 naughty.connect_signal("property::position", update_index)
+
+--@DOC_signals_COMMON@
 
 return setmetatable(naughty, {__index = index_miss, __newindex = set_index_miss})
 
