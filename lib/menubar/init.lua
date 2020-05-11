@@ -90,6 +90,10 @@ menubar.cache_entries = true
 -- @tfield[opt=true] boolean show_categories
 menubar.show_categories = true
 
+--- When false will hide results if the current query is empty
+-- @tfield[opt=true] boolean match_empty
+menubar.match_empty = true
+
 --- Specifies the geometry of the menubar. This is a table with the keys
 -- x, y, width and height. Missing values are replaced via the screen's
 -- geometry. However, missing height is replaced by the font size.
@@ -121,7 +125,7 @@ menubar.left_label = "◀◀"
 local list_interspace = theme.xresources.apply_dpi(4) * 3
 
 --- Allows user to specify custom parameters for prompt.run function
--- (like colors).
+-- (like colors). This will merge with the default parameters, overriding affected values.
 -- @see awful.prompt
 menubar.prompt_args = {}
 
@@ -310,37 +314,45 @@ local function menulist_update(scr)
     end
 
     -- Add the applications according to their name and cmdline
-    for _, v in ipairs(menubar.menu_entries) do
-        v.focused = false
-        if not current_category or v.category == current_category then
+    local add_entry = function(entry)
+        entry.focused = false
+        if not current_category or entry.category == current_category then
 
             -- check if the query matches either the name or the commandline
             -- of some entry
-            if string.match(v.name, pattern)
-                or string.match(v.cmdline, pattern) then
+            if string.match(entry.name, pattern)
+                or string.match(entry.cmdline, pattern) then
 
-                v.weight = 0
-                v.prio = PRIO_NONE
+                entry.weight = 0
+                entry.prio = PRIO_NONE
 
                 -- get use count from count_table if present
                 -- and use it as weight
-                if string.len(pattern) > 0 and count_table[v.name] ~= nil then
-                    v.weight = tonumber(count_table[v.name])
+                if string.len(pattern) > 0 and count_table[entry.name] ~= nil then
+                    entry.weight = tonumber(count_table[entry.name])
                 end
 
                 -- check for prefix match
-                if string.match(v.name, "^" .. pattern)
-                    or string.match(v.cmdline, "^" .. pattern) then
+                if string.match(entry.name, "^" .. pattern)
+                    or string.match(entry.cmdline, "^" .. pattern) then
                     -- increase default priority
-                    v.prio = PRIO_NONE + 1
+                    entry.prio = PRIO_NONE + 1
                 else
-                    v.prio = PRIO_NONE
+                    entry.prio = PRIO_NONE
                 end
 
-                table.insert (command_list, v)
+                table.insert (command_list, entry)
             end
         end
     end
+
+    -- Add entries if required
+    if query ~= "" or menubar.match_empty then
+        for _, v in ipairs(menubar.menu_entries) do
+            add_entry(v)
+        end
+    end
+
 
     local function compare_counts(a, b)
         if a.prio == b.prio then
@@ -486,9 +498,7 @@ function menubar.show(scr)
     current_category = nil
     menulist_update(scr)
 
-    local prompt_args = menubar.prompt_args or {}
-
-    awful.prompt.run(setmetatable({
+    local default_prompt_args = {
         prompt              = "Run: ",
         textbox             = instance.prompt.widget,
         completion_callback = awful.completion.shell,
@@ -499,7 +509,10 @@ function menubar.show(scr)
             menulist_update(scr)
         end,
         keypressed_callback = prompt_keypressed_callback
-    }, {__index=prompt_args}))
+    }
+
+    awful.prompt.run(setmetatable(menubar.prompt_args, {__index=default_prompt_args}))
+
 
     instance.wibox.visible = true
 end
